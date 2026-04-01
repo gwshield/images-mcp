@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 1366 1366" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g transform="matrix(0.64,0,0,0.64,0,0)">
+        <g id="gwdn-logo-v0" transform="matrix(1.07427,0,0,1.09628,-3418.04,-2748.37)">
+            <rect x="3181.74" y="2506.99" width="1985.85" height="1945.97" style="fill:none;"/>
+            <clipPath id="_clip1">
+                <rect x="3181.74" y="2506.99" width="1985.85" height="1945.97"/>
+            </clipPath>
+            <g clip-path="url(#_clip1)">
+                <g id="Layer-1" serif:id="Layer 1" transform="matrix(3.87861,0,0,3.80072,220.652,221.081)">
+                    <rect x="0" y="0" width="2000" height="2000" style="fill:none;"/>
+                    <g transform="matrix(1.26894,0,0,1.26843,1122.56,916.955)">
+                        <path d="M0,-93.84L0.028,91.304L-53.4,122.145L-53.432,-124.691L0,-93.84ZM-81.344,-46.917L-81.315,138.227L-241.615,45.701L-241.514,-139.515L-81.25,-232.067L-27.82,-201.203L-188.158,-108.533L-188.139,14.856L-134.763,45.66L-134.776,-77.767L-81.344,-46.917ZM25.624,-170.319L79.056,-139.468L79.084,45.676L25.655,76.516L25.624,-170.319Z" style="fill:rgb(240,0,128);"/>
+                    </g>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>
