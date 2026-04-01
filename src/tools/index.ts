@@ -12,6 +12,7 @@ import {
   generateSmokeTest,
   generateAllowlistStub,
   generateRiskStatementStub,
+  generateDockerignore,
 } from "../templates/dockerfile.js";
 import { validateDockerfileContent } from "./validate.js";
 import type { ImageFamily, ImageProfile } from "../types/index.js";
@@ -294,6 +295,45 @@ export function registerTools(server: McpServer): void {
 
       return {
         content: [{ type: "text", text }],
+      };
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // generate_dockerignore (Finding F-2)
+  // -------------------------------------------------------------------------
+  server.tool(
+    "generate_dockerignore",
+    "Generate a minimal, family-aware .dockerignore for the build context",
+    {
+      serviceName: z
+        .string()
+        .describe("Service name (for the file header comment)"),
+      family: z
+        .enum(FAMILY_VALUES)
+        .describe(
+          "Image build family (determines language-specific exclusions)",
+        ),
+    },
+    async ({ serviceName, family }) => {
+      const content = generateDockerignore(family as ImageFamily);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              `# .dockerignore for gwshield-${serviceName} (${family})\n\n` +
+              "```\n" +
+              content +
+              "```\n\n" +
+              "**Guidelines:**\n" +
+              "- Keep this file minimal (~15 lines of actual exclusions)\n" +
+              "- Only exclude paths that exist inside directories copied by the Dockerfile\n" +
+              "- Never exclude files the Dockerfile actually needs\n" +
+              "- Place at `images/{service}/{version}/.dockerignore`",
+          },
+        ],
       };
     },
   );
