@@ -218,6 +218,87 @@ CMD ["--help"]
 }
 
 // ---------------------------------------------------------------------------
+// F-5: Source COPY helpers
+//
+// Generates explicit COPY instructions for user-code families (go-static,
+// rust-static). When sourceFiles is provided, a layer-caching pattern is
+// used (manifests first, then source). When omitted, falls back to
+// COPY . /build/ with a TODO comment.
+//
+// C-musl and C-glibc are NOT covered here — those families download source
+// tarballs inside the container and have no local COPY at all.
+// ---------------------------------------------------------------------------
+
+function goSourceCopy(input: GenerateDockerfileInput): string {
+  const files = input.sourceFiles;
+
+  if (!files || files.length === 0) {
+    return (
+      `# F-5: No sourceFiles provided — using COPY . /build/ as fallback.\n` +
+      `# TODO: Replace with explicit COPY for better layer caching and security.\n` +
+      `#       Recommended pattern for a standard Go module:\n` +
+      `#         COPY go.mod go.sum /build/\n` +
+      `#         RUN go mod download\n` +
+      `#         COPY main.go cmd/ pkg/ internal/ /build/\n` +
+      `COPY . /build/\n`
+    );
+  }
+
+  // Separate module manifests (go.mod/go.sum) from the rest for dep caching
+  const modFiles = files.filter((f) => f === "go.mod" || f === "go.sum");
+  const srcFiles = files.filter((f) => f !== "go.mod" && f !== "go.sum");
+
+  let out = "";
+  if (modFiles.length > 0) {
+    out += `# Layer 1: module manifests — cached until dependencies change\n`;
+    out += `COPY ${modFiles.join(" ")} /build/\n`;
+    out += `RUN go mod download\n\n`;
+  }
+  if (srcFiles.length > 0) {
+    out += `# Layer 2: source files\n`;
+    out += `COPY ${srcFiles.join(" ")} /build/\n`;
+  }
+  return out;
+}
+
+function rustSourceCopy(input: GenerateDockerfileInput): string {
+  const files = input.sourceFiles;
+
+  if (!files || files.length === 0) {
+    return (
+      `# F-5: No sourceFiles provided — using COPY . /build/ as fallback.\n` +
+      `# TODO: Replace with explicit COPY for better layer caching and security.\n` +
+      `#       Recommended pattern for a standard Rust crate:\n` +
+      `#         COPY Cargo.toml Cargo.lock /build/\n` +
+      `#         RUN mkdir src && echo "fn main() {}" > src/main.rs \\\\\n` +
+      `#             && cargo build --release --target "$RUST_TARGET" \\\\\n` +
+      `#             ; rm -f "target/$RUST_TARGET/release/${input.serviceName}"*  # prime dep cache\n` +
+      `#         COPY src/ /build/src/\n` +
+      `COPY . /build/\n`
+    );
+  }
+
+  // Separate Cargo manifests from source for dep cache priming
+  const manifestFiles = files.filter(
+    (f) => f === "Cargo.toml" || f === "Cargo.lock",
+  );
+  const srcFiles = files.filter(
+    (f) => f !== "Cargo.toml" && f !== "Cargo.lock",
+  );
+
+  let out = "";
+  if (manifestFiles.length > 0) {
+    out += `# Layer 1: Cargo manifests — prime dependency cache\n`;
+    out += `COPY ${manifestFiles.join(" ")} /build/\n`;
+  }
+  if (srcFiles.length > 0) {
+    out += `# Layer 2: source files\n`;
+    out += `COPY ${srcFiles.join(" ")} /build/\n`;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Family-specific generators
 // ---------------------------------------------------------------------------
 
@@ -244,15 +325,20 @@ ARG GO_BUILDER_DIGEST=${builderDigest}
 # hadolint ignore=DL3006
 FROM \${GO_BUILDER_IMAGE}:\${GO_BUILDER_TAG}@\${GO_BUILDER_DIGEST} AS builder
 
+# F-4: TARGETARCH is injected by BuildKit when building with --platform.
+# Declare it here to make the multi-arch intent explicit and use it for GOARCH.
+ARG TARGETARCH
+
 WORKDIR /build
 
-# Copy source
-COPY . /build/
-
-# Build with hardened flags
-RUN --mount=type=cache,target=/root/.cache/go/mod,id=gomod-${input.serviceName} \\
-    --mount=type=cache,target=/root/.cache/go/build,id=gobuild-${input.serviceName} \\
-    CGO_ENABLED=0 GOOS=linux go build \\
+${goSourceCopy(input)}
+# F-4: Map TARGETARCH (BuildKit) to GOARCH (Go toolchain)
+# hadolint ignore=SC2039
+RUN case "$TARGETARCH" in \\
+        arm64|aarch64) export GOARCH="arm64" ;; \\
+        *)             export GOARCH="amd64" ;; \\
+    esac \\
+    && CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" go build \\
         -trimpath \\
         -ldflags "-s -w" \\
         -o /build/${input.serviceName} .
@@ -350,8 +436,16 @@ RUN set -e; \\
     fi; \\
     echo "OK: ${input.serviceName} ${input.profile} — only musl loader dynamic"
 
-# Stage musl dynamic loader for runtime
-RUN cp /lib/ld-musl-*.so.1 /tmp/ 2>/dev/null || true
+# F-4: Stage the musl dynamic loader for the target architecture.
+# TARGETARCH is injected by BuildKit when building with --platform.
+# Using an explicit case block rather than a glob makes the multi-arch
+# intent visible and avoids accidentally staging unexpected .so files.
+ARG TARGETARCH
+# hadolint ignore=SC2039
+RUN case "$TARGETARCH" in \\
+        arm64|aarch64) cp /lib/ld-musl-aarch64.so.1 /tmp/ ;; \\
+        *)             cp /lib/ld-musl-x86_64.so.1  /tmp/ ;; \\
+    esac
 ` +
     `
 # -----------------------------------------------------------------------------
@@ -493,17 +587,28 @@ ARG RUST_BUILDER_DIGEST=${builderDigest}
 # hadolint ignore=DL3006
 FROM \${RUST_BUILDER_IMAGE}:\${RUST_BUILDER_TAG}@\${RUST_BUILDER_DIGEST} AS builder
 
-WORKDIR /build
-COPY . /build/
+# F-4: TARGETARCH is injected by BuildKit when building with --platform.
+# Map it to the correct musl target triple for cargo.
+ARG TARGETARCH
 
-RUN cargo build \\
+WORKDIR /build
+
+${rustSourceCopy(input)}
+# F-4: Select musl target triple based on build platform
+# hadolint ignore=SC2039
+RUN case "$TARGETARCH" in \\
+        arm64|aarch64) export RUST_TARGET="aarch64-unknown-linux-musl" ;; \\
+        *)             export RUST_TARGET="x86_64-unknown-linux-musl"  ;; \\
+    esac \\
+    && cargo build \\
         --release \\
-        --target x86_64-unknown-linux-musl \\
-    && strip --strip-unneeded target/x86_64-unknown-linux-musl/release/${input.serviceName}
+        --target "$RUST_TARGET" \\
+    && cp "target/$RUST_TARGET/release/${input.serviceName}" /build/${input.serviceName} \\
+    && strip --strip-unneeded /build/${input.serviceName}
 
 # Verify static binary
 RUN set -e; \\
-    file target/x86_64-unknown-linux-musl/release/${input.serviceName} | grep -q "statically linked" \\
+    file /build/${input.serviceName} | grep -q "statically linked" \\
     && echo "OK: ${input.serviceName} is statically linked" \\
     || { echo "ERROR: ${input.serviceName} is not statically linked"; exit 1; }
 ` +
@@ -519,7 +624,7 @@ COPY --from=deps /etc/passwd                         /etc/passwd
 COPY --from=deps /etc/group                          /etc/group
 COPY --from=deps --chown=65532:65532 /tmp            /tmp
 
-COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/${input.serviceName} /usr/local/bin/${input.serviceName}
+COPY --from=builder /build/${input.serviceName}      /usr/local/bin/${input.serviceName}
 COPY --from=banner  /usr/local/bin/gwshield-init     /usr/local/bin/gwshield-init
 ` +
     ociLabels(input) +
@@ -722,19 +827,6 @@ coverage.out
 `
       );
 
-    case "c-musl":
-    case "c-glibc":
-      return (
-        DOCKERIGNORE_COMMON +
-        DOCKERIGNORE_DOCS_SCAN +
-        `# --- C build artefacts (local, not needed — we build from source in-container) ---
-*.o
-*.a
-*.so
-*.dSYM/
-`
-      );
-
     case "rust-static":
       return (
         DOCKERIGNORE_COMMON +
@@ -745,6 +837,49 @@ target/release/
 *.rlib
 `
       );
+
+    case "c-musl":
+    case "c-glibc": {
+      // F-5: These families download upstream source tarballs inside the
+      // container (e.g., via wget in the builder stage). Local source files
+      // are NOT copied into the build context at all.
+      //
+      // As a result, the .dockerignore for pipeline images only needs to
+      // cover security-sensitive patterns (secrets, IDE state, CI artefacts)
+      // — not language-specific source exclusions.
+      //
+      // If you are writing a user-facing C image that does COPY local source,
+      // add your source-specific exclusions below the generated block.
+      const familyLabel =
+        family === "c-musl" ? "c-musl (tarball build)" : "c-glibc (tarball build)";
+      return (
+        `# =============================================================================\n` +
+        `# .dockerignore — generated by gwshield-image-builder-mcp\n` +
+        `# Family: ${familyLabel}\n` +
+        `#\n` +
+        `# NOTE: This family builds from an upstream source tarball downloaded\n` +
+        `# inside the container (via wget in the builder stage). Local source\n` +
+        `# files are NOT copied, so language-specific exclusions are omitted.\n` +
+        `# This file covers security-sensitive patterns only.\n` +
+        `# =============================================================================\n\n` +
+        `# --- Version control & CI ---\n` +
+        `.git/\n` +
+        `.github/\n` +
+        `.gitlab-ci.yml\n\n` +
+        `# --- IDE / editor ---\n` +
+        `.vscode/\n` +
+        `.idea/\n` +
+        `*.swp\n` +
+        `*.swo\n\n` +
+        `# --- Secrets & local env ---\n` +
+        `.env\n` +
+        `.env.*\n` +
+        `!.env.example\n\n` +
+        `# --- OS artefacts ---\n` +
+        `.DS_Store\n` +
+        `Thumbs.db\n`
+      );
+    }
 
     default:
       return DOCKERIGNORE_COMMON + DOCKERIGNORE_DOCS_SCAN;

@@ -57,7 +57,19 @@ Every generated Dockerfile enforces these pillars:
 
 ## Installation
 
+No global install required. The server runs on demand via `npx`.
+
+Run once to confirm the server starts:
+
+```bash
+npx -y gwshield-image-builder-mcp
+```
+
+Then add it to your agent config:
+
 ### Claude Desktop / Claude Code
+
+File: `~/.claude/claude_desktop_config.json`
 
 ```json
 {
@@ -70,10 +82,71 @@ Every generated Dockerfile enforces these pillars:
 }
 ```
 
+Restart Claude Desktop after saving.
+
 ### OpenCode
 
-```bash
-opencode mcp add gwshield-image-builder -- npx -y gwshield-image-builder-mcp
+File: `~/.config/opencode/config.json` or `opencode.json` (project)
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "gwshield-image-builder": {
+      "type": "local",
+      "command": ["npx", "-y", "gwshield-image-builder-mcp"],
+      "enabled": true
+    }
+  }
+}
+```
+
+OpenCode uses `"mcp"` (not `"mcpServers"`) with `type: "local"` and a command array.
+
+### Cursor
+
+File: `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global)
+
+```json
+{
+  "mcpServers": {
+    "gwshield-image-builder": {
+      "command": "npx",
+      "args": ["-y", "gwshield-image-builder-mcp"]
+    }
+  }
+}
+```
+
+### Continue (VS Code / JetBrains)
+
+File: `.continue/mcpServers/gwshield.yaml` (workspace)
+
+```yaml
+name: GWShield Image Builder
+version: 0.0.1
+schema: v1
+mcpServers:
+  - name: gwshield-image-builder
+    command: npx
+    args:
+      - "-y"
+      - "gwshield-image-builder-mcp"
+```
+
+### Gemini CLI
+
+File: `~/.gemini/settings.json`
+
+```json
+{
+  "mcpServers": {
+    "gwshield-image-builder": {
+      "command": "npx",
+      "args": ["-y", "gwshield-image-builder-mcp"]
+    }
+  }
+}
 ```
 
 ### From source
@@ -98,33 +171,59 @@ Then point your MCP client to:
 }
 ```
 
+All agents use the `npx` stdio transport — no daemon, no port, no persistent process.
+
 ---
 
 ## MCP Tools
 
-| Tool                    | Description                                        |
-| ----------------------- | -------------------------------------------------- |
-| `generate_dockerfile`   | Generate a hardened Dockerfile for a given service |
-| `generate_versions_env` | Generate pinned versions.env for a service         |
-| `generate_smoke_test`   | Generate smoke.sh for a service                    |
-| `validate_dockerfile`   | Validate a Dockerfile against the 15 pillars       |
-| `list_pillars`          | Return all 15 hardening pillars with descriptions  |
-| `suggest_runtime_base`  | Recommend scratch vs distroless for a service type |
+| Tool                    | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `list_pillars`          | List all 15 hardening pillars with descriptions               |
+| `suggest_runtime_base`  | Pick the right distroless or scratch base for a language      |
+| `generate_dockerfile`   | Generate a fully hardened multi-stage Dockerfile              |
+| `generate_versions_env` | Generate a pinned VERSIONS.env for reproducible builds        |
+| `generate_smoke_test`   | Generate a per-image smoke test script                        |
+| `validate_dockerfile`   | Validate a Dockerfile against all 15 pillars                  |
+| `generate_dockerignore` | Generate a minimal, family-aware .dockerignore                |
 
 ## MCP Prompts
 
-| Prompt              | Description                                                  |
-| ------------------- | ------------------------------------------------------------ |
-| `harden_image`      | Interactive: service name, version, profile -> full file set |
-| `review_dockerfile` | Review an existing Dockerfile against pillar compliance      |
+| Prompt              | Description                                                              |
+| ------------------- | ------------------------------------------------------------------------ |
+| `harden_image`      | Full analysis + hardened Dockerfile generation for any image             |
+| `review_dockerfile` | Audit an existing Dockerfile against GWShield pillars                    |
+| `build_test_iterate`| Build → scan → fix iteration loop with Trivy (max 5 iterations)         |
 
 ## MCP Resources
 
-| Resource                                  | Description                                     |
-| ----------------------------------------- | ----------------------------------------------- |
-| `gwshield://pillars`                      | The 15 hardening pillars as structured data     |
-| `gwshield://dockerfile-template/{family}` | Reference Dockerfile template per family        |
-| `gwshield://contributing`                 | GWShield contributing guidelines for new images |
+| Resource                 | Description                                          |
+| ------------------------ | ---------------------------------------------------- |
+| `gwshield://pillars`     | All 15 pillars with rationale and implementation notes |
+| `gwshield://families`    | Supported image families: Go, C, Rust                |
+| `gwshield://contributing`| GWShield contributing guidelines for new images      |
+
+---
+
+## Example prompts
+
+Ask your agent any of these after connecting the server:
+
+**"Harden my Go HTTP service"**
+Uses `harden_image` → `suggest_runtime_base` → `generate_dockerfile` (distroless runtime,
+`CGO_ENABLED=0`, UID 65532, pinned builder digest) → `validate_dockerfile` confirms all 15 pillars.
+
+**"Review my existing Dockerfile"**
+Uses `review_dockerfile` → `validate_dockerfile`. Returns a structured report: which pillars
+pass, which fail, and concrete fixes for each gap.
+
+**"Generate a smoke test for my nginx image"**
+Calls `generate_smoke_test` with the image family and binary path. Returns a script that checks
+binary execution, non-root user, no shell, and clean exit code.
+
+**"Build, scan, and fix until clean"**
+Uses `build_test_iterate`. The agent guides you through `docker build` → `trivy image` → fix
+→ repeat until Trivy reports zero HIGH or CRITICAL findings (max 5 iterations).
 
 ---
 
@@ -175,8 +274,8 @@ Key ideas we adopted or adapted from his approach:
 - **Verify everything before adding it** -- never assume a package,
   path, or binary exists; always verify from the actual project context
 - **Build-test-iterate loop** -- build the image, run it, check logs,
-  run linters and scanners, iterate until clean (planned for a future
-  version of this server)
+  run linters and scanners, iterate until clean (available via the
+  `build_test_iterate` prompt)
 
 Where Viktor's approach is language-agnostic and general-purpose, this
 server is opinionated and security-hardened: it enforces the 15 GWShield

@@ -137,6 +137,15 @@ export function registerTools(server: McpServer): void {
         .array(z.string())
         .optional()
         .describe("Additional Alpine build dependencies"),
+      sourceFiles: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "F-5: Explicit source files/dirs to COPY (go-static, rust-static only). " +
+            "Generates a layer-caching pattern (manifests first, then source). " +
+            "Omit for c-musl/c-glibc — those families build from tarball in-container. " +
+            "Example for Go: ['go.mod', 'go.sum', 'main.go', 'pkg/', 'internal/']",
+        ),
     },
     async (input) => {
       const dockerfile = generateDockerfile({
@@ -150,6 +159,7 @@ export function registerTools(server: McpServer): void {
         volumes: input.volumes,
         runtimeDirs: input.runtimeDirs,
         extraBuildDeps: input.extraBuildDeps,
+        sourceFiles: input.sourceFiles,
       });
 
       return {

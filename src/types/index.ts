@@ -57,6 +57,24 @@ export interface GenerateDockerfileInput {
   healthcheckCmd?: string[];
   disableFeatures?: string[];
   description?: string;
+  /**
+   * F-5: Explicit source files/directories to COPY into the build stage.
+   * Applies to go-static and rust-static families (user-code patterns).
+   *
+   * When provided, generates an explicit COPY instruction set with a
+   * layer-caching pattern (manifests first, then source).
+   *
+   * When omitted, falls back to `COPY . /build/` with a # TODO comment
+   * prompting the developer to replace it.
+   *
+   * Not applicable to c-musl / c-glibc: those families download source
+   * tarballs inside the container and do not COPY local source files.
+   *
+   * Examples:
+   *   go-static:   ["go.mod", "go.sum", "main.go", "pkg/", "internal/"]
+   *   rust-static: ["Cargo.toml", "Cargo.lock", "src/"]
+   */
+  sourceFiles?: string[];
 }
 
 /** Input for Dockerfile validation */

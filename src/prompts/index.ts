@@ -71,11 +71,17 @@ export function registerPrompts(server: McpServer): void {
                 `## Step 1 — Generate the file set\n\n` +
                 `Once verification is complete, generate all required files:\n\n` +
                 `1. Use \`suggest_runtime_base\` to determine the correct image family\n` +
-                `2. Use \`generate_dockerfile\` to create the Dockerfile\n` +
-                `3. Use \`generate_versions_env\` for the version pin file\n` +
-                `4. Use \`generate_smoke_test\` for the smoke test\n` +
-                `5. Use \`generate_dockerignore\` for the build-context filter\n` +
-                `6. Use \`validate_dockerfile\` to check pillar compliance\n\n` +
+                `2. For **go-static** or **rust-static** families: ask the user which\n` +
+                `   source files/directories to COPY (e.g., go.mod, go.sum, main.go, pkg/,\n` +
+                `   internal/ for Go; Cargo.toml, Cargo.lock, src/ for Rust). Pass these\n` +
+                `   as \`sourceFiles\` to \`generate_dockerfile\` for explicit COPY instructions\n` +
+                `   with layer-caching. If the user does not know, omit \`sourceFiles\` — a\n` +
+                `   fallback with TODO comment will be generated.\n` +
+                `3. Use \`generate_dockerfile\` to create the Dockerfile\n` +
+                `4. Use \`generate_versions_env\` for the version pin file\n` +
+                `5. Use \`generate_smoke_test\` for the smoke test\n` +
+                `6. Use \`generate_dockerignore\` for the build-context filter\n` +
+                `7. Use \`validate_dockerfile\` to check pillar compliance\n\n` +
                 `The output should follow the per-image contract:\n` +
                 `\`\`\`\n` +
                 `images/${serviceName}/${serviceVersion}/\n` +
