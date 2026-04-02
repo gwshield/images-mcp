@@ -1,6 +1,6 @@
 {
   "name": "gwshield-image-builder-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for AI-assisted hardened Docker image generation following the 15 GWShield hardening pillars",
   "author": "Gatewarden / RelicFrog Foundation",
   "license": "Apache-2.0",
@@ -19,7 +19,10 @@
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "lint": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
@@ -27,7 +30,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
-    "typescript": "^5.8.3"
+    "@vitest/coverage-v8": "^4.1.2",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.2"
   },
   "engines": {
     "node": ">=20"

@@ -1,0 +1,1254 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Dockerfile snapshots > c-glibc snapshot 1`] = `
+"# syntax=docker/dockerfile:1.10
+# =============================================================================
+# gwshield-testapp v1.2.3 — standard profile
+# Copyright RELICFROG Foundation, Patrick Paechnatz — Apache-2.0
+# =============================================================================
+# Profile  : standard
+# Runtime  : FROM distroless/cc-debian12, UID/GID 65532 (nonroot).
+# Security : Snapshot test image
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global ARGs
+# -----------------------------------------------------------------------------
+ARG ALPINE_IMAGE=ghcr.io/gwshield/alpine
+ARG ALPINE_TAG=3.22
+ARG ALPINE_DIGEST=sha256:55ae5d250caebc548793f321534bc6a8ef1d116f334f18f4ada1b2daad3251b2
+
+# Gwshield banner — build-time metadata (injected by CI via --build-arg)
+ARG GWS_SERVICE="testapp"
+ARG GWS_VERSION="v1.2.3"
+ARG GWS_PROFILE="standard"
+ARG GWS_BUILD_TS="unknown"
+ARG GWS_GIT_COMMIT="unknown"
+ARG GWS_GIT_BRANCH="unknown"
+ARG GWS_EXEC="/usr/local/bin/testapp"
+
+ARG DISTROLESS_IMAGE=gcr.io/distroless/cc-debian12
+ARG DISTROLESS_DIGEST=sha256:REPLACE_WITH_ACTUAL_DIGEST
+
+# -----------------------------------------------------------------------------
+# Stage 1: deps — nonroot identity + runtime filesystem skeleton
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS deps
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-deps \\
+    apk add --no-cache \\
+        ca-certificates \\
+        tzdata \\
+    && addgroup -g 65532 -S nonroot \\
+    && adduser  -u 65532 -S -G nonroot -H -s /sbin/nologin nonroot
+
+RUN mkdir -p \\
+        /data \\
+    && chown -R 65532:65532 \\
+        /data \\
+    && chmod 1777 /tmp
+
+# -----------------------------------------------------------------------------
+# Stage 2: banner — compile gwshield-init startup wrapper (statically linked)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS banner
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-banner \\
+    apk add --no-cache gcc musl-dev
+
+ARG GWS_SERVICE
+ARG GWS_VERSION
+ARG GWS_PROFILE
+ARG GWS_BUILD_TS
+ARG GWS_GIT_COMMIT
+ARG GWS_GIT_BRANCH
+ARG GWS_EXEC
+
+COPY shared/banner/gwshield-init.c /tmp/gwshield-init.c
+
+# hadolint ignore=SC2016
+RUN gcc \\
+        -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE \\
+        -Wformat -Werror=format-security -Wall \\
+        -DGWS_SERVICE='"'"\${GWS_SERVICE}"'"' \\
+        -DGWS_VERSION='"'"\${GWS_VERSION}"'"' \\
+        -DGWS_PROFILE='"'"\${GWS_PROFILE}"'"' \\
+        -DGWS_BUILD_TS='"'"\${GWS_BUILD_TS}"'"' \\
+        -DGWS_GIT_COMMIT='"'"\${GWS_GIT_COMMIT}"'"' \\
+        -DGWS_GIT_BRANCH='"'"\${GWS_GIT_BRANCH}"'"' \\
+        -DGWS_EXEC='"'"\${GWS_EXEC}"'"' \\
+        -Wl,-z,relro,-z,now -static -pie \\
+        -o /usr/local/bin/gwshield-init \\
+        /tmp/gwshield-init.c \\
+    && strip --strip-unneeded /usr/local/bin/gwshield-init
+
+# -----------------------------------------------------------------------------
+# Stage 3: builder — compile from source (glibc-linked)
+# -----------------------------------------------------------------------------
+# NOTE: This service requires glibc and cannot be compiled against musl.
+# Justification must be documented in docs/risk-statement.md per P-01.
+# hadolint ignore=DL3006,DL3008
+FROM debian:bookworm-slim AS builder
+
+# TODO: Add build dependencies and compilation steps for testapp
+# Example:
+# RUN apt-get update && apt-get install -y --no-install-recommends \\
+#         build-essential wget ca-certificates \\
+#     && rm -rf /var/lib/apt/lists/*
+#
+# WORKDIR /build
+# RUN wget -q <source-url> && tar xf <source>.tar.gz
+# RUN ./configure && make -j"$(nproc)" && strip src/testapp
+
+WORKDIR /build
+RUN echo "TODO: implement builder stage for testapp"
+
+# -----------------------------------------------------------------------------
+# Stage 4: runtime (distroless — glibc dependency documented)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${DISTROLESS_IMAGE}@\${DISTROLESS_DIGEST} AS runtime
+
+COPY --from=deps /etc/passwd  /etc/passwd
+COPY --from=deps /etc/group   /etc/group
+
+# COPY --from=builder /build/testapp /usr/local/bin/testapp
+COPY --from=banner  /usr/local/bin/gwshield-init /usr/local/bin/gwshield-init
+
+LABEL org.opencontainers.image.title="Hardened testapp (standard)" \\
+      org.opencontainers.image.description="Snapshot test image" \\
+      org.opencontainers.image.version="v1.2.3" \\
+      org.opencontainers.image.vendor="Gatewarden" \\
+      org.opencontainers.image.licenses="Apache-2.0" \\
+      org.opencontainers.image.source="https://github.com/gwshield/images" \\
+      io.gwshield.profile="standard" \\
+      io.gwshield.testapp.version="v1.2.3"
+
+USER 65532:65532
+
+EXPOSE 8080/tcp
+
+VOLUME ["/data"]
+
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["/usr/local/bin/gwshield-init"]
+CMD ["--help"]
+"
+`;
+
+exports[`Dockerfile snapshots > c-musl snapshot 1`] = `
+"# syntax=docker/dockerfile:1.10
+# =============================================================================
+# gwshield-testapp v1.2.3 — standard profile
+# Copyright RELICFROG Foundation, Patrick Paechnatz — Apache-2.0
+# =============================================================================
+# Profile  : standard
+# Runtime  : FROM scratch + musl loader, UID/GID 65532 (nonroot), no shell.
+# Security : Snapshot test image
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global ARGs
+# -----------------------------------------------------------------------------
+ARG ALPINE_IMAGE=ghcr.io/gwshield/alpine
+ARG ALPINE_TAG=3.22
+ARG ALPINE_DIGEST=sha256:55ae5d250caebc548793f321534bc6a8ef1d116f334f18f4ada1b2daad3251b2
+
+# Gwshield banner — build-time metadata (injected by CI via --build-arg)
+ARG GWS_SERVICE="testapp"
+ARG GWS_VERSION="v1.2.3"
+ARG GWS_PROFILE="standard"
+ARG GWS_BUILD_TS="unknown"
+ARG GWS_GIT_COMMIT="unknown"
+ARG GWS_GIT_BRANCH="unknown"
+ARG GWS_EXEC="/usr/local/bin/testapp"
+
+# -----------------------------------------------------------------------------
+# Stage 1: deps — nonroot identity + runtime filesystem skeleton
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS deps
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-deps \\
+    apk add --no-cache \\
+        ca-certificates \\
+        tzdata \\
+    && addgroup -g 65532 -S nonroot \\
+    && adduser  -u 65532 -S -G nonroot -H -s /sbin/nologin nonroot
+
+RUN mkdir -p \\
+        /data \\
+    && chown -R 65532:65532 \\
+        /data \\
+    && chmod 1777 /tmp
+
+# -----------------------------------------------------------------------------
+# Stage 2: banner — compile gwshield-init startup wrapper (statically linked)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS banner
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-banner \\
+    apk add --no-cache gcc musl-dev
+
+ARG GWS_SERVICE
+ARG GWS_VERSION
+ARG GWS_PROFILE
+ARG GWS_BUILD_TS
+ARG GWS_GIT_COMMIT
+ARG GWS_GIT_BRANCH
+ARG GWS_EXEC
+
+COPY shared/banner/gwshield-init.c /tmp/gwshield-init.c
+
+# hadolint ignore=SC2016
+RUN gcc \\
+        -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE \\
+        -Wformat -Werror=format-security -Wall \\
+        -DGWS_SERVICE='"'"\${GWS_SERVICE}"'"' \\
+        -DGWS_VERSION='"'"\${GWS_VERSION}"'"' \\
+        -DGWS_PROFILE='"'"\${GWS_PROFILE}"'"' \\
+        -DGWS_BUILD_TS='"'"\${GWS_BUILD_TS}"'"' \\
+        -DGWS_GIT_COMMIT='"'"\${GWS_GIT_COMMIT}"'"' \\
+        -DGWS_GIT_BRANCH='"'"\${GWS_GIT_BRANCH}"'"' \\
+        -DGWS_EXEC='"'"\${GWS_EXEC}"'"' \\
+        -Wl,-z,relro,-z,now -static -pie \\
+        -o /usr/local/bin/gwshield-init \\
+        /tmp/gwshield-init.c \\
+    && strip --strip-unneeded /usr/local/bin/gwshield-init
+
+# -----------------------------------------------------------------------------
+# Stage 3: builder — compile from source with hardened flags
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS builder
+
+ARG TESTAPP_VERSION=1.2.3
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-builder \\
+    apk add --no-cache \\
+        gcc \\
+        g++ \\
+        make \\
+        musl-dev \\
+        linux-headers \\
+        libc-dev \\
+        wget
+
+WORKDIR /build
+
+RUN wget -q "https://example.com/testapp-1.2.3.tar.gz" \\
+        -O "testapp-\${TESTAPP_VERSION}.tar.gz" \\
+    && tar xf "testapp-\${TESTAPP_VERSION}.tar.gz" \\
+    && rm "testapp-\${TESTAPP_VERSION}.tar.gz"
+
+WORKDIR /build/testapp-\${TESTAPP_VERSION}
+
+# Build with hardened compiler flags
+RUN --mount=type=cache,target=/build/testapp-\${TESTAPP_VERSION}/.build,id=testapp-standard-build \\
+    make -j"$(nproc)" \\
+        CFLAGS="-O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security -fPIE" \\
+        LDFLAGS="-Wl,-z,relro,-z,now -pie" \\
+    && strip --strip-unneeded src/testapp
+
+# Verify binary
+RUN src/testapp --version \\
+    || { echo "ERROR: testapp failed to start"; exit 1; }
+
+# hadolint ignore=DL4006
+RUN set -e; \\
+    readelf_out=$(readelf -d src/testapp 2>&1); \\
+    printf '%s\\n' "$readelf_out"; \\
+    bad=$(printf '%s' "$readelf_out" | grep NEEDED | grep -v 'musl' || true); \\
+    if [ -n "$bad" ]; then \\
+        echo "ERROR: unexpected dynamic dependencies:"; \\
+        printf '%s\\n' "$bad"; \\
+        exit 1; \\
+    fi; \\
+    echo "OK: testapp standard — only musl loader dynamic"
+
+# F-4: Stage the musl dynamic loader for the target architecture.
+# TARGETARCH is injected by BuildKit when building with --platform.
+# Using an explicit case block rather than a glob makes the multi-arch
+# intent visible and avoids accidentally staging unexpected .so files.
+ARG TARGETARCH
+# hadolint ignore=SC2039
+RUN case "$TARGETARCH" in \\
+        arm64|aarch64) cp /lib/ld-musl-aarch64.so.1 /tmp/ ;; \\
+        *)             cp /lib/ld-musl-x86_64.so.1  /tmp/ ;; \\
+    esac
+
+# -----------------------------------------------------------------------------
+# Stage 4: runtime (FROM scratch)
+# -----------------------------------------------------------------------------
+FROM scratch AS runtime
+
+COPY --from=deps /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=deps /usr/share/zoneinfo                 /usr/share/zoneinfo
+COPY --from=deps /etc/passwd                         /etc/passwd
+COPY --from=deps /etc/group                          /etc/group
+
+COPY --from=deps --chown=65532:65532 /tmp            /tmp
+COPY --from=deps --chown=65532:65532 /data                /data
+
+COPY --from=builder /build/testapp-1.2.3/src/testapp /usr/local/bin/testapp
+COPY --from=builder /tmp/ld-musl*.so.1               /lib/
+COPY --from=banner  /usr/local/bin/gwshield-init     /usr/local/bin/gwshield-init
+
+LABEL org.opencontainers.image.title="Hardened testapp (standard)" \\
+      org.opencontainers.image.description="Snapshot test image" \\
+      org.opencontainers.image.version="v1.2.3" \\
+      org.opencontainers.image.vendor="Gatewarden" \\
+      org.opencontainers.image.licenses="Apache-2.0" \\
+      org.opencontainers.image.source="https://github.com/gwshield/images" \\
+      io.gwshield.profile="standard" \\
+      io.gwshield.testapp.version="v1.2.3"
+
+USER 65532:65532
+
+EXPOSE 8080/tcp
+
+VOLUME ["/data"]
+
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["/usr/local/bin/gwshield-init"]
+CMD ["--help"]
+"
+`;
+
+exports[`Dockerfile snapshots > go-cgo snapshot 1`] = `
+"# syntax=docker/dockerfile:1.10
+# =============================================================================
+# gwshield-testapp v1.2.3 — standard profile
+# Copyright RELICFROG Foundation, Patrick Paechnatz — Apache-2.0
+# =============================================================================
+# Profile  : standard
+# Runtime  : FROM distroless/static-debian12, UID/GID 65532 (nonroot).
+# Security : Snapshot test image
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global ARGs
+# -----------------------------------------------------------------------------
+ARG ALPINE_IMAGE=ghcr.io/gwshield/alpine
+ARG ALPINE_TAG=3.22
+ARG ALPINE_DIGEST=sha256:55ae5d250caebc548793f321534bc6a8ef1d116f334f18f4ada1b2daad3251b2
+
+# Gwshield banner — build-time metadata (injected by CI via --build-arg)
+ARG GWS_SERVICE="testapp"
+ARG GWS_VERSION="v1.2.3"
+ARG GWS_PROFILE="standard"
+ARG GWS_BUILD_TS="unknown"
+ARG GWS_GIT_COMMIT="unknown"
+ARG GWS_GIT_BRANCH="unknown"
+ARG GWS_EXEC="/usr/local/bin/testapp"
+
+ARG DISTROLESS_IMAGE=gcr.io/distroless/static-debian12
+ARG DISTROLESS_DIGEST=sha256:REPLACE_WITH_ACTUAL_DIGEST
+
+# -----------------------------------------------------------------------------
+# Stage 1: deps — nonroot identity + runtime filesystem skeleton
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS deps
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-deps \\
+    apk add --no-cache \\
+        ca-certificates \\
+        tzdata \\
+    && addgroup -g 65532 -S nonroot \\
+    && adduser  -u 65532 -S -G nonroot -H -s /sbin/nologin nonroot
+
+RUN mkdir -p \\
+        /data \\
+    && chown -R 65532:65532 \\
+        /data \\
+    && chmod 1777 /tmp
+
+# -----------------------------------------------------------------------------
+# Stage 2: banner — compile gwshield-init startup wrapper (statically linked)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS banner
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-banner \\
+    apk add --no-cache gcc musl-dev
+
+ARG GWS_SERVICE
+ARG GWS_VERSION
+ARG GWS_PROFILE
+ARG GWS_BUILD_TS
+ARG GWS_GIT_COMMIT
+ARG GWS_GIT_BRANCH
+ARG GWS_EXEC
+
+COPY shared/banner/gwshield-init.c /tmp/gwshield-init.c
+
+# hadolint ignore=SC2016
+RUN gcc \\
+        -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE \\
+        -Wformat -Werror=format-security -Wall \\
+        -DGWS_SERVICE='"'"\${GWS_SERVICE}"'"' \\
+        -DGWS_VERSION='"'"\${GWS_VERSION}"'"' \\
+        -DGWS_PROFILE='"'"\${GWS_PROFILE}"'"' \\
+        -DGWS_BUILD_TS='"'"\${GWS_BUILD_TS}"'"' \\
+        -DGWS_GIT_COMMIT='"'"\${GWS_GIT_COMMIT}"'"' \\
+        -DGWS_GIT_BRANCH='"'"\${GWS_GIT_BRANCH}"'"' \\
+        -DGWS_EXEC='"'"\${GWS_EXEC}"'"' \\
+        -Wl,-z,relro,-z,now -static -pie \\
+        -o /usr/local/bin/gwshield-init \\
+        /tmp/gwshield-init.c \\
+    && strip --strip-unneeded /usr/local/bin/gwshield-init
+
+# -----------------------------------------------------------------------------
+# Stage 3: builder — Go with CGO enabled (embedded C/C++ dependency)
+# -----------------------------------------------------------------------------
+# NOTE: This service requires CGO. Justification must be documented.
+# hadolint ignore=DL3006
+FROM golang:1.25-bookworm AS builder
+
+WORKDIR /build
+COPY . /build/
+
+RUN go build \\
+        -trimpath \\
+        -ldflags "-s -w" \\
+        -o /build/testapp .
+
+# -----------------------------------------------------------------------------
+# Stage 4: runtime (distroless/static — CGO dependency)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${DISTROLESS_IMAGE}@\${DISTROLESS_DIGEST} AS runtime
+
+COPY --from=deps /etc/passwd  /etc/passwd
+COPY --from=deps /etc/group   /etc/group
+
+COPY --from=builder /build/testapp     /usr/local/bin/testapp
+COPY --from=banner  /usr/local/bin/gwshield-init    /usr/local/bin/gwshield-init
+
+LABEL org.opencontainers.image.title="Hardened testapp (standard)" \\
+      org.opencontainers.image.description="Snapshot test image" \\
+      org.opencontainers.image.version="v1.2.3" \\
+      org.opencontainers.image.vendor="Gatewarden" \\
+      org.opencontainers.image.licenses="Apache-2.0" \\
+      org.opencontainers.image.source="https://github.com/gwshield/images" \\
+      io.gwshield.profile="standard" \\
+      io.gwshield.testapp.version="v1.2.3"
+
+USER 65532:65532
+
+EXPOSE 8080/tcp
+
+VOLUME ["/data"]
+
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["/usr/local/bin/gwshield-init"]
+CMD ["--help"]
+"
+`;
+
+exports[`Dockerfile snapshots > go-static snapshot 1`] = `
+"# syntax=docker/dockerfile:1.10
+# =============================================================================
+# gwshield-testapp v1.2.3 — standard profile
+# Copyright RELICFROG Foundation, Patrick Paechnatz — Apache-2.0
+# =============================================================================
+# Profile  : standard
+# Runtime  : FROM scratch, UID/GID 65532 (nonroot), no shell, no package mgr.
+# Security : Snapshot test image
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global ARGs
+# -----------------------------------------------------------------------------
+ARG ALPINE_IMAGE=ghcr.io/gwshield/alpine
+ARG ALPINE_TAG=3.22
+ARG ALPINE_DIGEST=sha256:55ae5d250caebc548793f321534bc6a8ef1d116f334f18f4ada1b2daad3251b2
+
+# Gwshield banner — build-time metadata (injected by CI via --build-arg)
+ARG GWS_SERVICE="testapp"
+ARG GWS_VERSION="v1.2.3"
+ARG GWS_PROFILE="standard"
+ARG GWS_BUILD_TS="unknown"
+ARG GWS_GIT_COMMIT="unknown"
+ARG GWS_GIT_BRANCH="unknown"
+ARG GWS_EXEC="/usr/local/bin/testapp"
+
+ARG GO_BUILDER_IMAGE=ghcr.io/gwshield/go-builder
+ARG GO_BUILDER_TAG=v1.25
+ARG GO_BUILDER_DIGEST=sha256:REPLACE_WITH_ACTUAL_DIGEST
+
+# -----------------------------------------------------------------------------
+# Stage 1: deps — nonroot identity + runtime filesystem skeleton
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS deps
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-deps \\
+    apk add --no-cache \\
+        ca-certificates \\
+        tzdata \\
+    && addgroup -g 65532 -S nonroot \\
+    && adduser  -u 65532 -S -G nonroot -H -s /sbin/nologin nonroot
+
+RUN mkdir -p \\
+        /data \\
+    && chown -R 65532:65532 \\
+        /data \\
+    && chmod 1777 /tmp
+
+# -----------------------------------------------------------------------------
+# Stage 2: banner — compile gwshield-init startup wrapper (statically linked)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS banner
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-banner \\
+    apk add --no-cache gcc musl-dev
+
+ARG GWS_SERVICE
+ARG GWS_VERSION
+ARG GWS_PROFILE
+ARG GWS_BUILD_TS
+ARG GWS_GIT_COMMIT
+ARG GWS_GIT_BRANCH
+ARG GWS_EXEC
+
+COPY shared/banner/gwshield-init.c /tmp/gwshield-init.c
+
+# hadolint ignore=SC2016
+RUN gcc \\
+        -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE \\
+        -Wformat -Werror=format-security -Wall \\
+        -DGWS_SERVICE='"'"\${GWS_SERVICE}"'"' \\
+        -DGWS_VERSION='"'"\${GWS_VERSION}"'"' \\
+        -DGWS_PROFILE='"'"\${GWS_PROFILE}"'"' \\
+        -DGWS_BUILD_TS='"'"\${GWS_BUILD_TS}"'"' \\
+        -DGWS_GIT_COMMIT='"'"\${GWS_GIT_COMMIT}"'"' \\
+        -DGWS_GIT_BRANCH='"'"\${GWS_GIT_BRANCH}"'"' \\
+        -DGWS_EXEC='"'"\${GWS_EXEC}"'"' \\
+        -Wl,-z,relro,-z,now -static -pie \\
+        -o /usr/local/bin/gwshield-init \\
+        /tmp/gwshield-init.c \\
+    && strip --strip-unneeded /usr/local/bin/gwshield-init
+
+# -----------------------------------------------------------------------------
+# Stage 3: builder — compile from source
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${GO_BUILDER_IMAGE}:\${GO_BUILDER_TAG}@\${GO_BUILDER_DIGEST} AS builder
+
+# F-4: TARGETARCH is injected by BuildKit when building with --platform.
+# Declare it here to make the multi-arch intent explicit and use it for GOARCH.
+ARG TARGETARCH
+
+WORKDIR /build
+
+# F-5: No sourceFiles provided — using COPY . /build/ as fallback.
+# TODO: Replace with explicit COPY for better layer caching and security.
+#       Recommended pattern for a standard Go module:
+#         COPY go.mod go.sum /build/
+#         RUN go mod download
+#         COPY main.go cmd/ pkg/ internal/ /build/
+COPY . /build/
+
+# F-4: Map TARGETARCH (BuildKit) to GOARCH (Go toolchain)
+# hadolint ignore=SC2039
+RUN case "$TARGETARCH" in \\
+        arm64|aarch64) export GOARCH="arm64" ;; \\
+        *)             export GOARCH="amd64" ;; \\
+    esac \\
+    && CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" go build \\
+        -trimpath \\
+        -ldflags "-s -w" \\
+        -o /build/testapp .
+
+# Verify static binary
+RUN set -e; \\
+    file /build/testapp | grep -q "statically linked" \\
+    && echo "OK: testapp is statically linked" \\
+    || { echo "ERROR: testapp is not statically linked"; exit 1; }
+
+# -----------------------------------------------------------------------------
+# Stage 4: runtime (FROM scratch)
+# -----------------------------------------------------------------------------
+FROM scratch AS runtime
+
+COPY --from=deps /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=deps /usr/share/zoneinfo                 /usr/share/zoneinfo
+COPY --from=deps /etc/passwd                         /etc/passwd
+COPY --from=deps /etc/group                          /etc/group
+COPY --from=deps --chown=65532:65532 /tmp            /tmp
+
+COPY --from=builder /build/testapp      /usr/local/bin/testapp
+COPY --from=banner  /usr/local/bin/gwshield-init     /usr/local/bin/gwshield-init
+
+LABEL org.opencontainers.image.title="Hardened testapp (standard)" \\
+      org.opencontainers.image.description="Snapshot test image" \\
+      org.opencontainers.image.version="v1.2.3" \\
+      org.opencontainers.image.vendor="Gatewarden" \\
+      org.opencontainers.image.licenses="Apache-2.0" \\
+      org.opencontainers.image.source="https://github.com/gwshield/images" \\
+      io.gwshield.profile="standard" \\
+      io.gwshield.testapp.version="v1.2.3"
+
+USER 65532:65532
+
+EXPOSE 8080/tcp
+
+VOLUME ["/data"]
+
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["/usr/local/bin/gwshield-init"]
+CMD ["--help"]
+"
+`;
+
+exports[`Dockerfile snapshots > java-distroless snapshot 1`] = `
+"# syntax=docker/dockerfile:1.10
+# =============================================================================
+# gwshield-testapp v1.2.3 — standard profile
+# Copyright RELICFROG Foundation, Patrick Paechnatz — Apache-2.0
+# =============================================================================
+# Profile  : standard
+# Runtime  : FROM distroless/java21-debian12, UID/GID 65532 (nonroot), JRE only.
+# Security : Snapshot test image
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global ARGs
+# -----------------------------------------------------------------------------
+ARG ALPINE_IMAGE=ghcr.io/gwshield/alpine
+ARG ALPINE_TAG=3.22
+ARG ALPINE_DIGEST=sha256:55ae5d250caebc548793f321534bc6a8ef1d116f334f18f4ada1b2daad3251b2
+
+# Gwshield banner — build-time metadata (injected by CI via --build-arg)
+ARG GWS_SERVICE="testapp"
+ARG GWS_VERSION="v1.2.3"
+ARG GWS_PROFILE="standard"
+ARG GWS_BUILD_TS="unknown"
+ARG GWS_GIT_COMMIT="unknown"
+ARG GWS_GIT_BRANCH="unknown"
+ARG GWS_EXEC="/usr/local/bin/testapp"
+
+ARG JAVA_BUILDER_IMAGE=ghcr.io/gwshield/java-builder
+ARG JAVA_BUILDER_TAG=v21
+ARG JAVA_BUILDER_DIGEST=sha256:REPLACE_WITH_ACTUAL_DIGEST
+
+ARG DISTROLESS_IMAGE=gcr.io/distroless/java21-debian12
+ARG DISTROLESS_DIGEST=sha256:REPLACE_WITH_ACTUAL_DIGEST
+
+# -----------------------------------------------------------------------------
+# Stage 1: deps — nonroot identity + runtime filesystem skeleton
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS deps
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-deps \\
+    apk add --no-cache \\
+        ca-certificates \\
+        tzdata \\
+    && addgroup -g 65532 -S nonroot \\
+    && adduser  -u 65532 -S -G nonroot -H -s /sbin/nologin nonroot
+
+RUN mkdir -p \\
+        /data \\
+    && chown -R 65532:65532 \\
+        /data \\
+    && chmod 1777 /tmp
+
+# -----------------------------------------------------------------------------
+# Stage 2: banner — compile gwshield-init startup wrapper (statically linked)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS banner
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-banner \\
+    apk add --no-cache gcc musl-dev
+
+ARG GWS_SERVICE
+ARG GWS_VERSION
+ARG GWS_PROFILE
+ARG GWS_BUILD_TS
+ARG GWS_GIT_COMMIT
+ARG GWS_GIT_BRANCH
+ARG GWS_EXEC
+
+COPY shared/banner/gwshield-init.c /tmp/gwshield-init.c
+
+# hadolint ignore=SC2016
+RUN gcc \\
+        -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE \\
+        -Wformat -Werror=format-security -Wall \\
+        -DGWS_SERVICE='"'"\${GWS_SERVICE}"'"' \\
+        -DGWS_VERSION='"'"\${GWS_VERSION}"'"' \\
+        -DGWS_PROFILE='"'"\${GWS_PROFILE}"'"' \\
+        -DGWS_BUILD_TS='"'"\${GWS_BUILD_TS}"'"' \\
+        -DGWS_GIT_COMMIT='"'"\${GWS_GIT_COMMIT}"'"' \\
+        -DGWS_GIT_BRANCH='"'"\${GWS_GIT_BRANCH}"'"' \\
+        -DGWS_EXEC='"'"\${GWS_EXEC}"'"' \\
+        -Wl,-z,relro,-z,now -static -pie \\
+        -o /usr/local/bin/gwshield-init \\
+        /tmp/gwshield-init.c \\
+    && strip --strip-unneeded /usr/local/bin/gwshield-init
+
+# -----------------------------------------------------------------------------
+# Stage 3: builder — compile and package fat JAR (Maven)
+# NOTE: JVM dependency — requires justification in docs/risk-statement.md per P-01.
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${JAVA_BUILDER_IMAGE}:\${JAVA_BUILDER_TAG}@\${JAVA_BUILDER_DIGEST} AS builder
+
+WORKDIR /app
+
+# F-5: Copy build manifests first for Maven dependency cache
+COPY pom.xml /app/
+RUN --mount=type=cache,target=/root/.m2,id=maven-testapp \\
+    mvn dependency:go-offline -q
+
+# Copy source
+COPY src/ /app/src/
+
+# Build fat JAR
+RUN --mount=type=cache,target=/root/.m2,id=maven-testapp \\
+    mvn package -DskipTests -q \\
+    && mv target/testapp-*.jar target/app.jar
+
+# Explode JAR layers for optimal Docker layer caching
+RUN mkdir -p target/dependency \\
+    && cd target/dependency \\
+    && jar -xf ../app.jar
+
+# -----------------------------------------------------------------------------
+# Stage 4: runtime (distroless/java21-debian12)
+# JRE-only runtime — no JDK, no shell, no package manager.
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${DISTROLESS_IMAGE}@\${DISTROLESS_DIGEST} AS runtime
+
+COPY --from=deps /etc/passwd  /etc/passwd
+COPY --from=deps /etc/group   /etc/group
+
+# Exploded JAR layers — ordered for optimal layer caching (dependencies change least)
+COPY --from=builder /app/target/dependency/BOOT-INF/lib      /app/BOOT-INF/lib
+COPY --from=builder /app/target/dependency/META-INF          /app/META-INF
+COPY --from=builder /app/target/dependency/BOOT-INF/classes  /app/BOOT-INF/classes
+COPY --from=banner  /usr/local/bin/gwshield-init                  /usr/local/bin/gwshield-init
+
+LABEL org.opencontainers.image.title="Hardened testapp (standard)" \\
+      org.opencontainers.image.description="Snapshot test image" \\
+      org.opencontainers.image.version="v1.2.3" \\
+      org.opencontainers.image.vendor="Gatewarden" \\
+      org.opencontainers.image.licenses="Apache-2.0" \\
+      org.opencontainers.image.source="https://github.com/gwshield/images" \\
+      io.gwshield.profile="standard" \\
+      io.gwshield.testapp.version="v1.2.3"
+
+ENV JAVA_TOOL_OPTIONS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+WORKDIR /app
+
+USER 65532:65532
+
+EXPOSE 8080/tcp
+
+VOLUME ["/data"]
+
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["/usr/local/bin/gwshield-init"]
+CMD ["--help"]
+"
+`;
+
+exports[`Dockerfile snapshots > node-static snapshot 1`] = `
+"# syntax=docker/dockerfile:1.10
+# =============================================================================
+# gwshield-testapp v1.2.3 — standard profile
+# Copyright RELICFROG Foundation, Patrick Paechnatz — Apache-2.0
+# =============================================================================
+# Profile  : standard
+# Runtime  : FROM distroless/nodejs20-debian12, UID/GID 65532 (nonroot), no npm.
+# Security : Snapshot test image
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global ARGs
+# -----------------------------------------------------------------------------
+ARG ALPINE_IMAGE=ghcr.io/gwshield/alpine
+ARG ALPINE_TAG=3.22
+ARG ALPINE_DIGEST=sha256:55ae5d250caebc548793f321534bc6a8ef1d116f334f18f4ada1b2daad3251b2
+
+# Gwshield banner — build-time metadata (injected by CI via --build-arg)
+ARG GWS_SERVICE="testapp"
+ARG GWS_VERSION="v1.2.3"
+ARG GWS_PROFILE="standard"
+ARG GWS_BUILD_TS="unknown"
+ARG GWS_GIT_COMMIT="unknown"
+ARG GWS_GIT_BRANCH="unknown"
+ARG GWS_EXEC="/usr/local/bin/testapp"
+
+ARG NODE_BUILDER_IMAGE=ghcr.io/gwshield/node-builder
+ARG NODE_BUILDER_TAG=v20
+ARG NODE_BUILDER_DIGEST=sha256:REPLACE_WITH_ACTUAL_DIGEST
+
+ARG DISTROLESS_IMAGE=gcr.io/distroless/nodejs20-debian12
+ARG DISTROLESS_DIGEST=sha256:REPLACE_WITH_ACTUAL_DIGEST
+
+# -----------------------------------------------------------------------------
+# Stage 1: deps — nonroot identity + runtime filesystem skeleton
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS deps
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-deps \\
+    apk add --no-cache \\
+        ca-certificates \\
+        tzdata \\
+    && addgroup -g 65532 -S nonroot \\
+    && adduser  -u 65532 -S -G nonroot -H -s /sbin/nologin nonroot
+
+RUN mkdir -p \\
+        /data \\
+    && chown -R 65532:65532 \\
+        /data \\
+    && chmod 1777 /tmp
+
+# -----------------------------------------------------------------------------
+# Stage 2: banner — compile gwshield-init startup wrapper (statically linked)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS banner
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-banner \\
+    apk add --no-cache gcc musl-dev
+
+ARG GWS_SERVICE
+ARG GWS_VERSION
+ARG GWS_PROFILE
+ARG GWS_BUILD_TS
+ARG GWS_GIT_COMMIT
+ARG GWS_GIT_BRANCH
+ARG GWS_EXEC
+
+COPY shared/banner/gwshield-init.c /tmp/gwshield-init.c
+
+# hadolint ignore=SC2016
+RUN gcc \\
+        -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE \\
+        -Wformat -Werror=format-security -Wall \\
+        -DGWS_SERVICE='"'"\${GWS_SERVICE}"'"' \\
+        -DGWS_VERSION='"'"\${GWS_VERSION}"'"' \\
+        -DGWS_PROFILE='"'"\${GWS_PROFILE}"'"' \\
+        -DGWS_BUILD_TS='"'"\${GWS_BUILD_TS}"'"' \\
+        -DGWS_GIT_COMMIT='"'"\${GWS_GIT_COMMIT}"'"' \\
+        -DGWS_GIT_BRANCH='"'"\${GWS_GIT_BRANCH}"'"' \\
+        -DGWS_EXEC='"'"\${GWS_EXEC}"'"' \\
+        -Wl,-z,relro,-z,now -static -pie \\
+        -o /usr/local/bin/gwshield-init \\
+        /tmp/gwshield-init.c \\
+    && strip --strip-unneeded /usr/local/bin/gwshield-init
+
+# -----------------------------------------------------------------------------
+# Stage 3: deps-install — install production node_modules
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${NODE_BUILDER_IMAGE}:\${NODE_BUILDER_TAG}@\${NODE_BUILDER_DIGEST} AS deps-install
+
+WORKDIR /app
+
+# F-5: Copy package manifests first for npm cache layer
+COPY package.json package-lock.json /app/
+RUN npm ci --omit=dev --ignore-scripts \\
+    && npm cache clean --force
+
+# -----------------------------------------------------------------------------
+# Stage 4: build — compile/transpile source (TypeScript, etc.)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${NODE_BUILDER_IMAGE}:\${NODE_BUILDER_TAG}@\${NODE_BUILDER_DIGEST} AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json /app/
+RUN npm ci --ignore-scripts
+
+# F-5: Copy source — adjust paths to match your project layout
+# TODO: Replace with your actual source layout, e.g.:
+#   COPY src/ /app/src/
+COPY . /app/
+RUN npm run build
+
+# -----------------------------------------------------------------------------
+# Stage 5: runtime (distroless/nodejs20-debian12)
+# NOTE: Node.js distroless runtime — requires justification per P-01.
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${DISTROLESS_IMAGE}@\${DISTROLESS_DIGEST} AS runtime
+
+COPY --from=deps /etc/passwd  /etc/passwd
+COPY --from=deps /etc/group   /etc/group
+
+COPY --from=deps-install /app/node_modules  /app/node_modules
+COPY --from=build         /app/dist          /app/dist
+COPY --from=build         /app/package.json  /app/package.json
+COPY --from=banner  /usr/local/bin/gwshield-init  /usr/local/bin/gwshield-init
+
+LABEL org.opencontainers.image.title="Hardened testapp (standard)" \\
+      org.opencontainers.image.description="Snapshot test image" \\
+      org.opencontainers.image.version="v1.2.3" \\
+      org.opencontainers.image.vendor="Gatewarden" \\
+      org.opencontainers.image.licenses="Apache-2.0" \\
+      org.opencontainers.image.source="https://github.com/gwshield/images" \\
+      io.gwshield.profile="standard" \\
+      io.gwshield.testapp.version="v1.2.3"
+
+ENV NODE_ENV="production"
+WORKDIR /app
+
+USER 65532:65532
+
+EXPOSE 8080/tcp
+
+VOLUME ["/data"]
+
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["/usr/local/bin/gwshield-init"]
+CMD ["--help"]
+"
+`;
+
+exports[`Dockerfile snapshots > python-static snapshot 1`] = `
+"# syntax=docker/dockerfile:1.10
+# =============================================================================
+# gwshield-testapp v1.2.3 — standard profile
+# Copyright RELICFROG Foundation, Patrick Paechnatz — Apache-2.0
+# =============================================================================
+# Profile  : standard
+# Runtime  : FROM distroless/python3-debian12, UID/GID 65532 (nonroot), no pip.
+# Security : Snapshot test image
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global ARGs
+# -----------------------------------------------------------------------------
+ARG ALPINE_IMAGE=ghcr.io/gwshield/alpine
+ARG ALPINE_TAG=3.22
+ARG ALPINE_DIGEST=sha256:55ae5d250caebc548793f321534bc6a8ef1d116f334f18f4ada1b2daad3251b2
+
+# Gwshield banner — build-time metadata (injected by CI via --build-arg)
+ARG GWS_SERVICE="testapp"
+ARG GWS_VERSION="v1.2.3"
+ARG GWS_PROFILE="standard"
+ARG GWS_BUILD_TS="unknown"
+ARG GWS_GIT_COMMIT="unknown"
+ARG GWS_GIT_BRANCH="unknown"
+ARG GWS_EXEC="/usr/local/bin/testapp"
+
+ARG PYTHON_BUILDER_IMAGE=ghcr.io/gwshield/python-builder
+ARG PYTHON_BUILDER_TAG=v3.12
+ARG PYTHON_BUILDER_DIGEST=sha256:REPLACE_WITH_ACTUAL_DIGEST
+
+ARG DISTROLESS_IMAGE=gcr.io/distroless/python3-debian12
+ARG DISTROLESS_DIGEST=sha256:REPLACE_WITH_ACTUAL_DIGEST
+
+# -----------------------------------------------------------------------------
+# Stage 1: deps — nonroot identity + runtime filesystem skeleton
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS deps
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-deps \\
+    apk add --no-cache \\
+        ca-certificates \\
+        tzdata \\
+    && addgroup -g 65532 -S nonroot \\
+    && adduser  -u 65532 -S -G nonroot -H -s /sbin/nologin nonroot
+
+RUN mkdir -p \\
+        /data \\
+    && chown -R 65532:65532 \\
+        /data \\
+    && chmod 1777 /tmp
+
+# -----------------------------------------------------------------------------
+# Stage 2: banner — compile gwshield-init startup wrapper (statically linked)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS banner
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-banner \\
+    apk add --no-cache gcc musl-dev
+
+ARG GWS_SERVICE
+ARG GWS_VERSION
+ARG GWS_PROFILE
+ARG GWS_BUILD_TS
+ARG GWS_GIT_COMMIT
+ARG GWS_GIT_BRANCH
+ARG GWS_EXEC
+
+COPY shared/banner/gwshield-init.c /tmp/gwshield-init.c
+
+# hadolint ignore=SC2016
+RUN gcc \\
+        -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE \\
+        -Wformat -Werror=format-security -Wall \\
+        -DGWS_SERVICE='"'"\${GWS_SERVICE}"'"' \\
+        -DGWS_VERSION='"'"\${GWS_VERSION}"'"' \\
+        -DGWS_PROFILE='"'"\${GWS_PROFILE}"'"' \\
+        -DGWS_BUILD_TS='"'"\${GWS_BUILD_TS}"'"' \\
+        -DGWS_GIT_COMMIT='"'"\${GWS_GIT_COMMIT}"'"' \\
+        -DGWS_GIT_BRANCH='"'"\${GWS_GIT_BRANCH}"'"' \\
+        -DGWS_EXEC='"'"\${GWS_EXEC}"'"' \\
+        -Wl,-z,relro,-z,now -static -pie \\
+        -o /usr/local/bin/gwshield-init \\
+        /tmp/gwshield-init.c \\
+    && strip --strip-unneeded /usr/local/bin/gwshield-init
+
+# -----------------------------------------------------------------------------
+# Stage 3: builder — install Python deps, pre-compile .pyc, strip extras
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${PYTHON_BUILDER_IMAGE}:\${PYTHON_BUILDER_TAG}@\${PYTHON_BUILDER_DIGEST} AS builder
+
+WORKDIR /app
+
+# F-5: Copy requirements manifests first for pip cache layer
+COPY requirements.txt /app/
+RUN pip install \\
+        --no-cache-dir \\
+        --prefix=/venv \\
+        --no-compile \\
+        -r requirements.txt \\
+    && find /venv -name "*.py" -exec python3 -m py_compile {} + \\
+    && find /venv \\( -name "tests" -o -name "test" \\) -type d -exec rm -rf {} + 2>/dev/null || true
+
+# Copy application source and pre-compile
+COPY . /app/
+RUN python3 -m compileall -b -q /app/
+
+# -----------------------------------------------------------------------------
+# Stage 4: runtime (distroless/python3-debian12)
+# NOTE: Python distroless runtime — requires justification per P-01.
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${DISTROLESS_IMAGE}@\${DISTROLESS_DIGEST} AS runtime
+
+COPY --from=deps /etc/passwd  /etc/passwd
+COPY --from=deps /etc/group   /etc/group
+
+COPY --from=builder /venv   /venv
+COPY --from=builder /app    /app
+COPY --from=banner  /usr/local/bin/gwshield-init /usr/local/bin/gwshield-init
+
+LABEL org.opencontainers.image.title="Hardened testapp (standard)" \\
+      org.opencontainers.image.description="Snapshot test image" \\
+      org.opencontainers.image.version="v1.2.3" \\
+      org.opencontainers.image.vendor="Gatewarden" \\
+      org.opencontainers.image.licenses="Apache-2.0" \\
+      org.opencontainers.image.source="https://github.com/gwshield/images" \\
+      io.gwshield.profile="standard" \\
+      io.gwshield.testapp.version="v1.2.3"
+
+ENV PYTHONPATH="/venv/lib/python3.12/site-packages"
+ENV PYTHONDONTWRITEBYTECODE="1"
+ENV PYTHONUNBUFFERED="1"
+
+USER 65532:65532
+
+EXPOSE 8080/tcp
+
+VOLUME ["/data"]
+
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["/usr/local/bin/gwshield-init"]
+CMD ["--help"]
+"
+`;
+
+exports[`Dockerfile snapshots > rust-static snapshot 1`] = `
+"# syntax=docker/dockerfile:1.10
+# =============================================================================
+# gwshield-testapp v1.2.3 — standard profile
+# Copyright RELICFROG Foundation, Patrick Paechnatz — Apache-2.0
+# =============================================================================
+# Profile  : standard
+# Runtime  : FROM scratch, UID/GID 65532 (nonroot), no shell.
+# Security : Snapshot test image
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global ARGs
+# -----------------------------------------------------------------------------
+ARG ALPINE_IMAGE=ghcr.io/gwshield/alpine
+ARG ALPINE_TAG=3.22
+ARG ALPINE_DIGEST=sha256:55ae5d250caebc548793f321534bc6a8ef1d116f334f18f4ada1b2daad3251b2
+
+# Gwshield banner — build-time metadata (injected by CI via --build-arg)
+ARG GWS_SERVICE="testapp"
+ARG GWS_VERSION="v1.2.3"
+ARG GWS_PROFILE="standard"
+ARG GWS_BUILD_TS="unknown"
+ARG GWS_GIT_COMMIT="unknown"
+ARG GWS_GIT_BRANCH="unknown"
+ARG GWS_EXEC="/usr/local/bin/testapp"
+
+ARG RUST_BUILDER_IMAGE=ghcr.io/gwshield/rust-builder
+ARG RUST_BUILDER_TAG=v1.87
+ARG RUST_BUILDER_DIGEST=sha256:REPLACE_WITH_ACTUAL_DIGEST
+
+# -----------------------------------------------------------------------------
+# Stage 1: deps — nonroot identity + runtime filesystem skeleton
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS deps
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-deps \\
+    apk add --no-cache \\
+        ca-certificates \\
+        tzdata \\
+    && addgroup -g 65532 -S nonroot \\
+    && adduser  -u 65532 -S -G nonroot -H -s /sbin/nologin nonroot
+
+RUN mkdir -p \\
+        /data \\
+    && chown -R 65532:65532 \\
+        /data \\
+    && chmod 1777 /tmp
+
+# -----------------------------------------------------------------------------
+# Stage 2: banner — compile gwshield-init startup wrapper (statically linked)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${ALPINE_IMAGE}:\${ALPINE_TAG}@\${ALPINE_DIGEST} AS banner
+
+# hadolint ignore=DL3018
+RUN --mount=type=cache,target=/var/cache/apk,id=apk-testapp-standard-banner \\
+    apk add --no-cache gcc musl-dev
+
+ARG GWS_SERVICE
+ARG GWS_VERSION
+ARG GWS_PROFILE
+ARG GWS_BUILD_TS
+ARG GWS_GIT_COMMIT
+ARG GWS_GIT_BRANCH
+ARG GWS_EXEC
+
+COPY shared/banner/gwshield-init.c /tmp/gwshield-init.c
+
+# hadolint ignore=SC2016
+RUN gcc \\
+        -O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE \\
+        -Wformat -Werror=format-security -Wall \\
+        -DGWS_SERVICE='"'"\${GWS_SERVICE}"'"' \\
+        -DGWS_VERSION='"'"\${GWS_VERSION}"'"' \\
+        -DGWS_PROFILE='"'"\${GWS_PROFILE}"'"' \\
+        -DGWS_BUILD_TS='"'"\${GWS_BUILD_TS}"'"' \\
+        -DGWS_GIT_COMMIT='"'"\${GWS_GIT_COMMIT}"'"' \\
+        -DGWS_GIT_BRANCH='"'"\${GWS_GIT_BRANCH}"'"' \\
+        -DGWS_EXEC='"'"\${GWS_EXEC}"'"' \\
+        -Wl,-z,relro,-z,now -static -pie \\
+        -o /usr/local/bin/gwshield-init \\
+        /tmp/gwshield-init.c \\
+    && strip --strip-unneeded /usr/local/bin/gwshield-init
+
+# -----------------------------------------------------------------------------
+# Stage 3: builder — Rust with musl target (fully static)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${RUST_BUILDER_IMAGE}:\${RUST_BUILDER_TAG}@\${RUST_BUILDER_DIGEST} AS builder
+
+# F-4: TARGETARCH is injected by BuildKit when building with --platform.
+# Map it to the correct musl target triple for cargo.
+ARG TARGETARCH
+
+WORKDIR /build
+
+# F-5: No sourceFiles provided — using COPY . /build/ as fallback.
+# TODO: Replace with explicit COPY for better layer caching and security.
+#       Recommended pattern for a standard Rust crate:
+#         COPY Cargo.toml Cargo.lock /build/
+#         RUN mkdir src && echo "fn main() {}" > src/main.rs \\\\
+#             && cargo build --release --target "$RUST_TARGET" \\\\
+#             ; rm -f "target/$RUST_TARGET/release/testapp"*  # prime dep cache
+#         COPY src/ /build/src/
+COPY . /build/
+
+# F-4: Select musl target triple based on build platform
+# hadolint ignore=SC2039
+RUN case "$TARGETARCH" in \\
+        arm64|aarch64) export RUST_TARGET="aarch64-unknown-linux-musl" ;; \\
+        *)             export RUST_TARGET="x86_64-unknown-linux-musl"  ;; \\
+    esac \\
+    && cargo build \\
+        --release \\
+        --target "$RUST_TARGET" \\
+    && cp "target/$RUST_TARGET/release/testapp" /build/testapp \\
+    && strip --strip-unneeded /build/testapp
+
+# Verify static binary
+RUN set -e; \\
+    file /build/testapp | grep -q "statically linked" \\
+    && echo "OK: testapp is statically linked" \\
+    || { echo "ERROR: testapp is not statically linked"; exit 1; }
+
+# -----------------------------------------------------------------------------
+# Stage 4: runtime (FROM scratch)
+# -----------------------------------------------------------------------------
+FROM scratch AS runtime
+
+COPY --from=deps /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=deps /usr/share/zoneinfo                 /usr/share/zoneinfo
+COPY --from=deps /etc/passwd                         /etc/passwd
+COPY --from=deps /etc/group                          /etc/group
+COPY --from=deps --chown=65532:65532 /tmp            /tmp
+
+COPY --from=builder /build/testapp      /usr/local/bin/testapp
+COPY --from=banner  /usr/local/bin/gwshield-init     /usr/local/bin/gwshield-init
+
+LABEL org.opencontainers.image.title="Hardened testapp (standard)" \\
+      org.opencontainers.image.description="Snapshot test image" \\
+      org.opencontainers.image.version="v1.2.3" \\
+      org.opencontainers.image.vendor="Gatewarden" \\
+      org.opencontainers.image.licenses="Apache-2.0" \\
+      org.opencontainers.image.source="https://github.com/gwshield/images" \\
+      io.gwshield.profile="standard" \\
+      io.gwshield.testapp.version="v1.2.3"
+
+USER 65532:65532
+
+EXPOSE 8080/tcp
+
+VOLUME ["/data"]
+
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["/usr/local/bin/gwshield-init"]
+CMD ["--help"]
+"
+`;
