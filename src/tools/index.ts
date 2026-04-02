@@ -23,6 +23,9 @@ const FAMILY_VALUES = [
   "c-glibc",
   "go-cgo",
   "rust-static",
+  "python-static",
+  "node-static",
+  "java-distroless",
 ] as const;
 
 const PROFILE_VALUES = [

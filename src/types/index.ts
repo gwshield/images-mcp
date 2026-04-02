@@ -8,7 +8,10 @@ export type ImageFamily =
   | "c-musl"
   | "c-glibc"
   | "go-cgo"
-  | "rust-static";
+  | "rust-static"
+  | "python-static"
+  | "node-static"
+  | "java-distroless";
 
 /** Image profile variant */
 export type ImageProfile =

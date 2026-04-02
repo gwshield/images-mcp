@@ -36,6 +36,12 @@ export function generateDockerfile(input: GenerateDockerfileInput): string {
       return generateGoCgo(input);
     case "rust-static":
       return generateRustStatic(input);
+    case "python-static":
+      return generatePythonStatic(input);
+    case "node-static":
+      return generateNodeStatic(input);
+    case "java-distroless":
+      return generateJavaDistroless(input);
     default:
       return generateGoStatic(input);
   }
@@ -71,6 +77,12 @@ function runtimeFor(family: ImageFamily): string {
       return "FROM distroless/static-debian12, UID/GID 65532 (nonroot).";
     case "rust-static":
       return "FROM scratch, UID/GID 65532 (nonroot), no shell.";
+    case "python-static":
+      return "FROM distroless/python3-debian12, UID/GID 65532 (nonroot), no pip.";
+    case "node-static":
+      return "FROM distroless/nodejs20-debian12, UID/GID 65532 (nonroot), no npm.";
+    case "java-distroless":
+      return "FROM distroless/java21-debian12, UID/GID 65532 (nonroot), JRE only.";
   }
 }
 
@@ -633,6 +645,232 @@ COPY --from=banner  /usr/local/bin/gwshield-init     /usr/local/bin/gwshield-ini
 }
 
 // ---------------------------------------------------------------------------
+// python-static / node-static / java-distroless generators
+// ---------------------------------------------------------------------------
+
+function generatePythonStatic(input: GenerateDockerfileInput): string {
+  const builderImage = input.builderImage ?? "ghcr.io/gwshield/python-builder";
+  const builderTag = input.builderTag ?? "v3.12";
+  const builderDigest =
+    input.builderDigest ?? "sha256:REPLACE_WITH_ACTUAL_DIGEST";
+  const distrolessDigest = "sha256:REPLACE_WITH_ACTUAL_DIGEST";
+  const appDir = "/app";
+  const venvDir = "/venv";
+
+  return (
+    header(input) +
+    globalArgs(input) +
+    `
+ARG PYTHON_BUILDER_IMAGE=${builderImage}
+ARG PYTHON_BUILDER_TAG=${builderTag}
+ARG PYTHON_BUILDER_DIGEST=${builderDigest}
+
+ARG DISTROLESS_IMAGE=gcr.io/distroless/python3-debian12
+ARG DISTROLESS_DIGEST=${distrolessDigest}
+` +
+    depsStage(input) +
+    bannerStage(input) +
+    `
+# -----------------------------------------------------------------------------
+# Stage 3: builder — install Python deps, pre-compile .pyc, strip extras
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${PYTHON_BUILDER_IMAGE}:\${PYTHON_BUILDER_TAG}@\${PYTHON_BUILDER_DIGEST} AS builder
+
+WORKDIR ${appDir}
+
+# F-5: Copy requirements manifests first for pip cache layer
+COPY requirements.txt ${appDir}/
+RUN pip install \\
+        --no-cache-dir \\
+        --prefix=${venvDir} \\
+        --no-compile \\
+        -r requirements.txt \\
+    && find ${venvDir} -name "*.py" -exec python3 -m py_compile {} + \\
+    && find ${venvDir} \\( -name "tests" -o -name "test" \\) -type d -exec rm -rf {} + 2>/dev/null || true
+
+# Copy application source and pre-compile
+COPY . ${appDir}/
+RUN python3 -m compileall -b -q ${appDir}/
+` +
+    `
+# -----------------------------------------------------------------------------
+# Stage 4: runtime (distroless/python3-debian12)
+# NOTE: Python distroless runtime — requires justification per P-01.
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${DISTROLESS_IMAGE}@\${DISTROLESS_DIGEST} AS runtime
+
+COPY --from=deps /etc/passwd  /etc/passwd
+COPY --from=deps /etc/group   /etc/group
+
+COPY --from=builder ${venvDir}   ${venvDir}
+COPY --from=builder ${appDir}    ${appDir}
+COPY --from=banner  /usr/local/bin/gwshield-init /usr/local/bin/gwshield-init
+` +
+    ociLabels(input) +
+    `
+ENV PYTHONPATH="${venvDir}/lib/python3.12/site-packages"
+ENV PYTHONDONTWRITEBYTECODE="1"
+ENV PYTHONUNBUFFERED="1"
+` +
+    runtimeFooter(input)
+  );
+}
+
+function generateNodeStatic(input: GenerateDockerfileInput): string {
+  const builderImage = input.builderImage ?? "ghcr.io/gwshield/node-builder";
+  const builderTag = input.builderTag ?? "v20";
+  const builderDigest =
+    input.builderDigest ?? "sha256:REPLACE_WITH_ACTUAL_DIGEST";
+  const distrolessDigest = "sha256:REPLACE_WITH_ACTUAL_DIGEST";
+  const appDir = "/app";
+
+  return (
+    header(input) +
+    globalArgs(input) +
+    `
+ARG NODE_BUILDER_IMAGE=${builderImage}
+ARG NODE_BUILDER_TAG=${builderTag}
+ARG NODE_BUILDER_DIGEST=${builderDigest}
+
+ARG DISTROLESS_IMAGE=gcr.io/distroless/nodejs20-debian12
+ARG DISTROLESS_DIGEST=${distrolessDigest}
+` +
+    depsStage(input) +
+    bannerStage(input) +
+    `
+# -----------------------------------------------------------------------------
+# Stage 3: deps-install — install production node_modules
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${NODE_BUILDER_IMAGE}:\${NODE_BUILDER_TAG}@\${NODE_BUILDER_DIGEST} AS deps-install
+
+WORKDIR ${appDir}
+
+# F-5: Copy package manifests first for npm cache layer
+COPY package.json package-lock.json ${appDir}/
+RUN npm ci --omit=dev --ignore-scripts \\
+    && npm cache clean --force
+
+# -----------------------------------------------------------------------------
+# Stage 4: build — compile/transpile source (TypeScript, etc.)
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${NODE_BUILDER_IMAGE}:\${NODE_BUILDER_TAG}@\${NODE_BUILDER_DIGEST} AS build
+
+WORKDIR ${appDir}
+
+COPY package.json package-lock.json ${appDir}/
+RUN npm ci --ignore-scripts
+
+# F-5: Copy source — adjust paths to match your project layout
+# TODO: Replace with your actual source layout, e.g.:
+#   COPY src/ ${appDir}/src/
+COPY . ${appDir}/
+RUN npm run build
+` +
+    `
+# -----------------------------------------------------------------------------
+# Stage 5: runtime (distroless/nodejs20-debian12)
+# NOTE: Node.js distroless runtime — requires justification per P-01.
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${DISTROLESS_IMAGE}@\${DISTROLESS_DIGEST} AS runtime
+
+COPY --from=deps /etc/passwd  /etc/passwd
+COPY --from=deps /etc/group   /etc/group
+
+COPY --from=deps-install ${appDir}/node_modules  ${appDir}/node_modules
+COPY --from=build         ${appDir}/dist          ${appDir}/dist
+COPY --from=build         ${appDir}/package.json  ${appDir}/package.json
+COPY --from=banner  /usr/local/bin/gwshield-init  /usr/local/bin/gwshield-init
+` +
+    ociLabels(input) +
+    `
+ENV NODE_ENV="production"
+WORKDIR ${appDir}
+` +
+    runtimeFooter(input)
+  );
+}
+
+function generateJavaDistroless(input: GenerateDockerfileInput): string {
+  const builderImage = input.builderImage ?? "ghcr.io/gwshield/java-builder";
+  const builderTag = input.builderTag ?? "v21";
+  const builderDigest =
+    input.builderDigest ?? "sha256:REPLACE_WITH_ACTUAL_DIGEST";
+  const distrolessDigest = "sha256:REPLACE_WITH_ACTUAL_DIGEST";
+  const appDir = "/app";
+
+  return (
+    header(input) +
+    globalArgs(input) +
+    `
+ARG JAVA_BUILDER_IMAGE=${builderImage}
+ARG JAVA_BUILDER_TAG=${builderTag}
+ARG JAVA_BUILDER_DIGEST=${builderDigest}
+
+ARG DISTROLESS_IMAGE=gcr.io/distroless/java21-debian12
+ARG DISTROLESS_DIGEST=${distrolessDigest}
+` +
+    depsStage(input) +
+    bannerStage(input) +
+    `
+# -----------------------------------------------------------------------------
+# Stage 3: builder — compile and package fat JAR (Maven)
+# NOTE: JVM dependency — requires justification in docs/risk-statement.md per P-01.
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${JAVA_BUILDER_IMAGE}:\${JAVA_BUILDER_TAG}@\${JAVA_BUILDER_DIGEST} AS builder
+
+WORKDIR ${appDir}
+
+# F-5: Copy build manifests first for Maven dependency cache
+COPY pom.xml ${appDir}/
+RUN --mount=type=cache,target=/root/.m2,id=maven-${input.serviceName} \\
+    mvn dependency:go-offline -q
+
+# Copy source
+COPY src/ ${appDir}/src/
+
+# Build fat JAR
+RUN --mount=type=cache,target=/root/.m2,id=maven-${input.serviceName} \\
+    mvn package -DskipTests -q \\
+    && mv target/${input.serviceName}-*.jar target/app.jar
+
+# Explode JAR layers for optimal Docker layer caching
+RUN mkdir -p target/dependency \\
+    && cd target/dependency \\
+    && jar -xf ../app.jar
+` +
+    `
+# -----------------------------------------------------------------------------
+# Stage 4: runtime (distroless/java21-debian12)
+# JRE-only runtime — no JDK, no shell, no package manager.
+# -----------------------------------------------------------------------------
+# hadolint ignore=DL3006
+FROM \${DISTROLESS_IMAGE}@\${DISTROLESS_DIGEST} AS runtime
+
+COPY --from=deps /etc/passwd  /etc/passwd
+COPY --from=deps /etc/group   /etc/group
+
+# Exploded JAR layers — ordered for optimal layer caching (dependencies change least)
+COPY --from=builder ${appDir}/target/dependency/BOOT-INF/lib      ${appDir}/BOOT-INF/lib
+COPY --from=builder ${appDir}/target/dependency/META-INF          ${appDir}/META-INF
+COPY --from=builder ${appDir}/target/dependency/BOOT-INF/classes  ${appDir}/BOOT-INF/classes
+COPY --from=banner  /usr/local/bin/gwshield-init                  /usr/local/bin/gwshield-init
+` +
+    ociLabels(input) +
+    `
+ENV JAVA_TOOL_OPTIONS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+WORKDIR ${appDir}
+` +
+    runtimeFooter(input)
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Supporting file generators
 // ---------------------------------------------------------------------------
 
@@ -851,7 +1089,9 @@ target/release/
       // If you are writing a user-facing C image that does COPY local source,
       // add your source-specific exclusions below the generated block.
       const familyLabel =
-        family === "c-musl" ? "c-musl (tarball build)" : "c-glibc (tarball build)";
+        family === "c-musl"
+          ? "c-musl (tarball build)"
+          : "c-glibc (tarball build)";
       return (
         `# =============================================================================\n` +
         `# .dockerignore — generated by gwshield-image-builder-mcp\n` +
@@ -880,6 +1120,61 @@ target/release/
         `Thumbs.db\n`
       );
     }
+
+    case "python-static":
+      return (
+        DOCKERIGNORE_COMMON +
+        DOCKERIGNORE_DOCS_SCAN +
+        `# --- Python-specific ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+dist/
+build/
+*.egg-info/
+venv/
+.venv/
+`
+      );
+
+    case "node-static":
+      return (
+        DOCKERIGNORE_COMMON +
+        DOCKERIGNORE_DOCS_SCAN +
+        `# --- Node.js-specific ---
+node_modules/
+npm-debug.log*
+yarn-error.log*
+dist/
+build/
+coverage/
+.nyc_output/
+*.test.ts
+*.spec.ts
+*.test.js
+*.spec.js
+`
+      );
+
+    case "java-distroless":
+      return (
+        DOCKERIGNORE_COMMON +
+        DOCKERIGNORE_DOCS_SCAN +
+        `# --- Java/JVM-specific ---
+target/
+build/
+.gradle/
+*.class
+*.jar
+!pom.xml
+`
+      );
 
     default:
       return DOCKERIGNORE_COMMON + DOCKERIGNORE_DOCS_SCAN;
