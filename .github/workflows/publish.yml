@@ -45,13 +45,15 @@ jobs:
             echo "ERROR: Failed to get OIDC token from GitHub" >&2
             exit 1
           fi
-          RESPONSE=$(curl -fsSL -X POST \
+          RESPONSE=$(curl -sSL -w "\nHTTP_STATUS:%{http_code}" -X POST \
             -H "Content-Type: application/json" \
             -d "{\"token\":\"${OIDC}\"}" \
             "https://registry.npmjs.org/-/npm/v1/oidc/token")
-          TOKEN=$(echo "$RESPONSE" | jq -r '.token // empty')
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
+          TOKEN=$(echo "$BODY" | jq -r '.token // empty')
           if [ -z "$TOKEN" ]; then
-            echo "ERROR: Token exchange failed: $(echo "$RESPONSE" | jq -r '.error // "unknown"')" >&2
+            echo "ERROR: Token exchange failed (HTTP $HTTP_STATUS): $(echo "$BODY" | jq -r '.')" >&2
             exit 1
           fi
           echo "::add-mask::${TOKEN}"
