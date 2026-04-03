@@ -34,7 +34,30 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Get npm publish token (Trusted Publishing OIDC)
+        id: npm-token
+        run: |
+          OIDC=$(curl -fsSL \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://registry.npmjs.org/" \
+            | jq -r .value)
+          if [ -z "$OIDC" ] || [ "$OIDC" = "null" ]; then
+            echo "ERROR: Failed to get OIDC token from GitHub" >&2
+            exit 1
+          fi
+          RESPONSE=$(curl -fsSL -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"token\":\"${OIDC}\"}" \
+            "https://registry.npmjs.org/-/npm/v1/oidc/token")
+          TOKEN=$(echo "$RESPONSE" | jq -r '.token // empty')
+          if [ -z "$TOKEN" ]; then
+            echo "ERROR: Token exchange failed: $(echo "$RESPONSE" | jq -r '.error // "unknown"')" >&2
+            exit 1
+          fi
+          echo "::add-mask::${TOKEN}"
+          echo "npm-token=${TOKEN}" >> "$GITHUB_OUTPUT"
+
       - name: Publish
         run: npm publish --provenance --access public
         env:
-          NODE_AUTH_TOKEN: ""
+          NODE_AUTH_TOKEN: ${{ steps.npm-token.outputs.npm-token }}
