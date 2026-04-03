@@ -1,16 +1,18 @@
 {
   "name": "gwshield-image-builder-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "MCP server for AI-assisted hardened Docker image generation following the 15 GWShield hardening pillars",
   "author": "Gatewarden / RelicFrog Foundation",
   "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
     "gwshield-image-builder-mcp": "dist/index.js"
   },
   "files": [
     "dist",
+    "!dist/tests",
     "README.md",
     "LICENSE"
   ],

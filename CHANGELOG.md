@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-03
+
+### Changed
+
+- Exclude `dist/tests` from published npm tarball — test files are not useful to consumers
+- Add `"types": "dist/index.d.ts"` to `package.json` for correct TypeScript type resolution
+- Switch publish workflow to npm Trusted Publishing (OIDC) — `NPM_TOKEN` no longer required
+
 ## [0.2.0] - 2026-04-02
 
 ### Added
@@ -65,6 +73,7 @@ Initial release of the GWShield Image Builder MCP server.
   - F-6: project-analysis-first step in `harden_image` prompt
 - Compatible with Claude Desktop, Cursor, Gemini CLI, Continue, and OpenCode
 
-[Unreleased]: https://github.com/gwshield/images-mcp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/gwshield/images-mcp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/gwshield/images-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/gwshield/images-mcp/compare/v0.1.0-alpha...v0.2.0
 [0.1.0-alpha]: https://github.com/gwshield/images-mcp/releases/tag/v0.1.0-alpha

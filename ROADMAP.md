@@ -17,7 +17,13 @@ It is version-based and subject to change based on community feedback and pipeli
 - [x] **GitHub Actions publish**: tag-triggered npm publish on `v*` tags
 - [ ] **Expanded validation**: stricter pillar checks, line-by-line analysis (deferred to v0.3)
 
-## v0.3 — Validation Depth and Transport
+## v0.3 — Package Quality and CI Hardening (released 2026-04-03)
+
+- [x] Exclude `dist/tests` from published npm tarball
+- [x] Add `"types"` field to `package.json` for TypeScript consumers
+- [x] Switch publish workflow to npm Trusted Publishing (OIDC)
+
+## v0.4 — Validation Depth and Transport
 
 - **Expanded validation**: stricter pillar checks, line-by-line analysis, per-layer scoring
 - **HTTP SSE transport** in addition to stdio
