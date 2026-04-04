@@ -23,6 +23,8 @@ Closes #
 - [ ] CHANGELOG.md updated under `[Unreleased]`
 - [ ] No secrets, tokens, or credentials included in any file
 - [ ] Commit messages follow the Conventional Commits standard (see `.github/COMMIT_CONVENTION.md`)
+- [ ] This PR was authored or fully reviewed by a human who takes responsibility for the changes
+- [ ] If AI tools were used to write or review code, I have personally reviewed the full diff, run the build, and accept full accountability
 
 ## Notes for reviewers
 

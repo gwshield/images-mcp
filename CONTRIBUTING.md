@@ -5,6 +5,7 @@ Thank you for considering a contribution. This document explains how to set up t
 ## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
+- [Automated Contributions Policy](#automated-contributions-policy)
 - [Prerequisites](#prerequisites)
 - [Local Setup](#local-setup)
 - [Project Structure](#project-structure)
@@ -22,6 +23,36 @@ Thank you for considering a contribution. This document explains how to set up t
 ## Code of Conduct
 
 This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating you agree to uphold it.
+
+---
+
+## Automated Contributions Policy
+
+Every pull request must have a named human owner who is accountable for the changes.
+
+**Not permitted:**
+
+- PRs opened by autonomous bots or agent systems without a designated human owner
+- Fully automated commits that bypass human review (e.g., scripts that open PRs directly)
+
+**Permitted:**
+
+- **Dependabot** — dependency update PRs opened by the `dependabot[bot]` GitHub App are
+  accepted. These are reviewed and merged by a human maintainer.
+- **Project CI apps** — status checks, lint bots, and similar automated systems that
+  comment on or update existing PRs (but do not open them) are accepted.
+- **AI-assisted contributions** — PRs where the author used AI coding tools (LLMs,
+  code-completion agents, etc.) to write or review code are accepted, provided that:
+  - A human reviews the full diff before opening the PR
+  - A human runs the build and any relevant tests locally
+  - The human takes full responsibility for the correctness and security of the changes
+  - No mandatory disclosure of AI tool usage is required
+
+**Why this policy exists:**
+
+Automated and agent-generated PRs without human review introduce supply chain risk. This
+project ships a tool used in security-sensitive pipelines. Human accountability on every
+change is non-negotiable.
 
 ---
 

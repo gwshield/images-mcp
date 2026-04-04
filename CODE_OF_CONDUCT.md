@@ -22,6 +22,7 @@ Examples of unacceptable behavior include:
 - Trolling, insulting or derogatory comments, and personal or political attacks
 - Public or private harassment
 - Publishing others' private information, such as a physical or electronic address, without their explicit permission
+- Submitting automated or bot-generated contributions without a named human owner who has reviewed and accepted responsibility for the changes (see [CONTRIBUTING.md](CONTRIBUTING.md) for the full policy)
 - Other conduct which could reasonably be considered inappropriate in a professional setting
 
 ## Enforcement Responsibilities
@@ -32,7 +33,7 @@ Community leaders have the right and responsibility to remove, edit, or reject c
 
 ## Scope
 
-This Code of Conduct applies within all community spaces, and also applies when an individual is officially representing the community in public spaces. Examples of representing our community include using an official email address, posting via an official social media account, or acting as an appointed representative at an online or offline event.
+This Code of Conduct applies within all community spaces, and also applies when an individual is officially representing the community in public spaces. Examples of representing our community include using an official email address, posting via an official social media account, or acting as an appointed representative at an online or offline event. For the automated and AI-assisted contributions policy, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Enforcement
 
