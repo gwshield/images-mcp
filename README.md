@@ -14,6 +14,8 @@ Works with Claude, Gemini, OpenCode, and any MCP-compatible AI agent.
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![MCP](https://img.shields.io/badge/MCP-1.x-brightgreen.svg)](https://modelcontextprotocol.io/)
+[![npm provenance](https://img.shields.io/badge/npm-provenance-blue?logo=npm)](https://www.npmjs.com/package/gwshield-image-builder-mcp)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/gwshield/images-mcp/badge)](https://securityscorecards.dev/viewer/?uri=github.com/gwshield/images-mcp)
 
 </div>
 
@@ -239,6 +241,45 @@ Dockerfile pattern:
 | `c-glibc`     | distroless/cc-debian12     | glibc dynamic | PostgreSQL                    |
 | `go-cgo`      | distroless/static-debian12 | CGO enabled   | Pomerium, OTel Collector      |
 | `rust-static` | scratch                    | musl target   | Future Rust services          |
+
+---
+
+## Supply Chain Security
+
+[![npm provenance](https://img.shields.io/badge/npm-provenance-blue?logo=npm)](https://www.npmjs.com/package/gwshield-image-builder-mcp)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/gwshield/images-mcp/badge)](https://securityscorecards.dev/viewer/?uri=github.com/gwshield/images-mcp)
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| npm provenance (SLSA v1) | Active | Every published version has a SLSA Provenance v1 attestation linked from the npm registry |
+| SLSA attestation | Active | Verifiable via `cosign` (see below) |
+| SHA-pinned GitHub Actions | Active | All `uses:` references pinned to immutable commit SHAs |
+| Dependabot | Active | Weekly automated updates for npm dependencies and GitHub Actions |
+| Lockfile enforcement | Active | `npm ci` in CI — `package-lock.json` with SHA-512 integrity for all 188 packages |
+| Registry pin | Active | `.npmrc` pins `registry.npmjs.org` — no third-party registries |
+
+### Verifying a published version
+
+Consumers can verify the provenance attestation for any published version using
+[cosign](https://github.com/sigstore/cosign):
+
+```bash
+# Verify SLSA provenance attestation for a specific version
+cosign verify-attestation \
+  --type slsaprovenance1 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp "^https://github.com/gwshield/images-mcp/.github/workflows/publish.yml@refs/tags/v" \
+  $(npm pack gwshield-image-builder-mcp --dry-run --json | jq -r '.[0].filename')
+```
+
+Alternatively, provenance is visible directly on the npm registry page under the
+"Provenance" tab for each published version.
+
+### Reporting security issues
+
+See [SECURITY.md](SECURITY.md) for the vulnerability disclosure policy.
+Use [GitHub private security advisories](https://github.com/gwshield/images-mcp/security/advisories/new)
+to report vulnerabilities confidentially.
 
 ---
 
