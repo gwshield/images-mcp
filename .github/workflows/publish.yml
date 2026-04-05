@@ -35,6 +35,13 @@ jobs:
         run: npm test
 
       - name: Publish
-        run: npm publish --provenance --access public
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if npm show "${PACKAGE_NAME}@${PACKAGE_VERSION}" version &>/dev/null; then
+            echo "Version ${PACKAGE_VERSION} is already published on npm, skipping."
+          else
+            npm publish --provenance --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
