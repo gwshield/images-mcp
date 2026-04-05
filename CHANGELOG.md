@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-04
+
+### Added
+
+- **Automated and AI-assisted contributions policy** in `CONTRIBUTING.md`: defines
+  permitted (Dependabot, AI-assisted with human review) and prohibited (autonomous bots
+  without named human owner) PR types; explains supply chain rationale
+- **`CODE_OF_CONDUCT.md`**: cross-reference to `CONTRIBUTING.md` automated contributions
+  policy added to unacceptable behavior list
+- **`PULL_REQUEST_TEMPLATE.md`**: checklist item for human review of AI-assisted changes
+- **`SECURITY.md`**: vulnerability reporting policy and supported version table
+- **`dependabot.yml`**: weekly npm and GitHub Actions dependency update schedule
+- **`.npmrc`**: `provenance=true` — all publishes include npm provenance by default
+- **OpenSSF Scorecard** workflow (`.github/workflows/scorecard.yml`): weekly + push
+  analysis, results published to GitHub Security tab
+- **Supply chain security section** in `README.md`: SBOM, provenance, Scorecard badge,
+  and verification instructions
+
+### Changed
+
+- **CI workflow** (`.github/workflows/ci.yml`): all actions SHA-pinned, explicit
+  `permissions` blocks added, `npm audit --audit-level=high` step added
+- **Publish workflow** (`.github/workflows/publish.yml`): all actions SHA-pinned,
+  explicit `permissions` blocks added
+
 ## [0.3.0] - 2026-04-03
 
 ### Changed
@@ -73,7 +98,8 @@ Initial release of the GWShield Image Builder MCP server.
   - F-6: project-analysis-first step in `harden_image` prompt
 - Compatible with Claude Desktop, Cursor, Gemini CLI, Continue, and OpenCode
 
-[Unreleased]: https://github.com/gwshield/images-mcp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/gwshield/images-mcp/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/gwshield/images-mcp/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/gwshield/images-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/gwshield/images-mcp/compare/v0.1.0-alpha...v0.2.0
 [0.1.0-alpha]: https://github.com/gwshield/images-mcp/releases/tag/v0.1.0-alpha
