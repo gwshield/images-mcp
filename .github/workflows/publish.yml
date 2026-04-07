@@ -5,14 +5,16 @@ on:
     tags:
       - "v*"
 
+permissions: read-all
+
 jobs:
   publish:
     name: Publish npm package
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
-      id-token: write
+      contents: write    # create GitHub Release and upload signed assets
+      id-token: write    # OIDC for npm provenance + cosign keyless signing
 
     steps:
       - name: Checkout
@@ -34,7 +36,7 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Publish
+      - name: Publish to npm
         run: |
           PACKAGE_NAME=$(node -p "require('./package.json').name")
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
@@ -45,3 +47,35 @@ jobs:
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+        with:
+          cosign-release: "v3.0.5"
+
+      - name: Pack and sign release artifact
+        id: artifact
+        run: |
+          TARBALL=$(npm pack)
+          echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
+          cosign sign-blob --yes \
+            --output-signature="${TARBALL}.sig" \
+            --output-certificate="${TARBALL}.pem" \
+            "${TARBALL}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          TARBALL="${{ steps.artifact.outputs.tarball }}"
+          if gh release view "${TAG}" --repo "${{ github.repository }}" &>/dev/null; then
+            echo "Release ${TAG} already exists, uploading assets only."
+            gh release upload "${TAG}" "${TARBALL}" "${TARBALL}.sig" "${TARBALL}.pem" \
+              --repo "${{ github.repository }}" --clobber
+          else
+            gh release create "${TAG}" \
+              --title "${TAG}" \
+              --generate-notes \
+              "${TARBALL}" "${TARBALL}.sig" "${TARBALL}.pem"
+          fi

@@ -1,0 +1,6 @@
+# CODEOWNERS for gwshield/images-mcp
+#
+# All files require review from the primary maintainer.
+# GitHub requires at least one approval from a listed owner before merge.
+
+* @paterik

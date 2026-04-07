@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: ["main", "development"]
 
+permissions: read-all
+
 jobs:
   build-and-test:
     name: Build, Lint & Test (Node ${{ matrix.node-version }})
