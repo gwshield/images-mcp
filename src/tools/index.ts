@@ -290,18 +290,29 @@ export function registerTools(server: McpServer): void {
           const icon =
             p.status === "pass"
               ? "[PASS]"
-              : p.status === "fail"
-                ? "[FAIL]"
-                : p.status === "not-applicable"
-                  ? "[N/A]"
-                  : "[CHECK]";
-          return `${icon} ${p.pillarId}: ${p.pillarName}\n    ${p.detail}`;
+              : p.status === "warn"
+                ? "[WARN]"
+                : p.status === "fail"
+                  ? "[FAIL]"
+                  : p.status === "not-applicable"
+                    ? "[N/A]"
+                    : "[CHECK]";
+          const lineSuffix =
+            p.lines && p.lines.length > 0
+              ? ` (line${p.lines.length > 1 ? "s" : ""} ${p.lines.join(", ")})`
+              : "";
+          return `${icon} ${p.pillarId}: ${p.pillarName}${lineSuffix}\n    ${p.detail}`;
         })
         .join("\n\n");
 
+      const warnNote =
+        result.warnings > 0
+          ? ` | ${result.warnings} warning(s)`
+          : "";
+
       const text =
         `# Dockerfile Validation Report\n\n` +
-        `**Score:** ${result.score}/${result.maxScore}\n\n` +
+        `**Score:** ${result.score}/${result.maxScore}${warnNote}\n\n` +
         `${result.summary}\n\n` +
         `---\n\n` +
         pillarLines;

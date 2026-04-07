@@ -23,9 +23,24 @@ It is version-based and subject to change based on community feedback and pipeli
 - [x] Add `"types"` field to `package.json` for TypeScript consumers
 - [x] Switch publish workflow to npm Trusted Publishing (OIDC)
 
-## v0.4 — Validation Depth and Transport
+## v0.4 — Validation Depth (released 2026-04-07)
 
-- **Expanded validation**: stricter pillar checks, line-by-line analysis, per-layer scoring
+- [x] **Expanded validation**: stricter pillar checks, line citations, `warn` tier
+  - P-01: distroless runtime emits `warn` with line citation
+  - P-02: CGO_ENABLED=0 without readelf emits `warn`; readelf present upgrades to `pass`
+  - P-05: pinned but non-standard stage names emit `warn`
+  - P-12: partial hardening flags (3-4/5) emit `warn`; all flags without strip emit `warn`
+  - P-13: family-aware skip for source-copy families (python-static, node-static, java-distroless, go-cgo)
+  - All applicable pillars emit `lines?: number[]` for editor-actionable citations
+- [x] **`parseDockerfileStages()` export**: public stage parser API with per-stage line arrays
+- [x] **`warnings` count** on `ValidationResult`: distinct from score and failure count
+- [x] **Renderer**: `[WARN]` icon and `(line N)` suffix in tool output
+- [x] **Test suite expanded**: 130 tests (21 new — warn tier, lines, warnings, stage parser)
+- [ ] **HTTP SSE transport** — deferred to v0.5
+- [ ] **Digest pinning** integration — deferred to v0.5
+
+## v0.5 — Transport and Tooling
+
 - **HTTP SSE transport** in addition to stdio
   — enables remote agent connections and web-based tooling
 - **Digest pinning** integration: auto-suggest pinned digests for `FROM` base images

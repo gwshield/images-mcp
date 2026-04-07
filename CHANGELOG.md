@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-07
+
+### Added
+
+- **`warn` tier** in `PillarStatus`: new intermediate status between `pass` and `fail`
+  for findings that require attention but do not block production builds
+- **`lines?: number[]`** field on `PillarValidationResult`: 1-indexed line citations
+  for every applicable pillar result, enabling actionable editor integration
+- **`warnings: number`** field on `ValidationResult`: count of pillars in `warn` state,
+  distinct from `score` (pass count) and failures
+- **`parseDockerfileStages()`** export: splits a raw Dockerfile into `StageInfo` records
+  with `name`, `fromRef`, `fromLine`, `endLine`, and per-stage line arrays
+- **Stage parser unit tests** (7 new tests): alias extraction, unnamed stage, `fromRef`
+  content preservation, `endLine` boundary, per-stage line array
+
+### Changed
+
+- **P-01**: distroless final stage now emits `warn` (not `fail`); line citation on FROM line
+- **P-02**: CGO_ENABLED=0 without `readelf` verification emits `warn`; musl without
+  `readelf` also emits `warn`; pass requires readelf confirmation; line citations on
+  CGO/musl and readelf lines
+- **P-05**: stages with all bases pinned but non-standard names (deps/banner/builder/runtime)
+  emits `warn` instead of `pass`; line citations on unpinned FROM lines when applicable
+- **P-12**: all 5 flags present but no `strip` step emits `warn`; 3-4 flags present emits
+  `warn`; fewer than 3 flags remain `fail`; citation on hardening-flags line and strip line
+- **P-13**: `python-static`, `node-static`, `java-distroless`, `go-cgo` families skip tarball
+  checks (source copy pattern, no wget/curl tarball download expected)
+- **Summary format**: three-case output —
+  all pass → `All N applicable pillars pass. Dockerfile is compliant.`;
+  warnings only → `N/M pass, W warning(s). Address warnings to reach full compliance.`;
+  failures → `N/M pass, W warning(s), F failure(s). Fix failures first.`
+- **Renderer** (`src/tools/index.ts`): `[WARN]` icon added; line citation suffix
+  `(line N)` / `(lines N, M)` appended to pillar header; score line shows `| N warning(s)`
+
+### Tests
+
+- Updated: summary regex aligned to new format (`/failure/` replaces `/need attention/`)
+- Added: `warn` tier assertions for P-01, P-02, P-05
+- Added: `lines` field assertions for P-03, P-11, P-02 warn
+- Added: `warnings` field type and value assertions on `ValidationResult`
+- Added: `parseDockerfileStages` unit tests (7 cases)
+- Total: 130 tests (up from 109)
+
 ## [0.3.1] - 2026-04-04
 
 ### Added
@@ -98,7 +141,8 @@ Initial release of the GWShield Image Builder MCP server.
   - F-6: project-analysis-first step in `harden_image` prompt
 - Compatible with Claude Desktop, Cursor, Gemini CLI, Continue, and OpenCode
 
-[Unreleased]: https://github.com/gwshield/images-mcp/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/gwshield/images-mcp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/gwshield/images-mcp/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/gwshield/images-mcp/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/gwshield/images-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/gwshield/images-mcp/compare/v0.1.0-alpha...v0.2.0

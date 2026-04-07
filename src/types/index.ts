@@ -25,7 +25,12 @@ export type ImageProfile =
   | "compile-only";
 
 /** Pillar compliance status */
-export type PillarStatus = "pass" | "fail" | "not-applicable" | "manual-check";
+export type PillarStatus =
+  | "pass"
+  | "warn"
+  | "fail"
+  | "not-applicable"
+  | "manual-check";
 
 /** A single hardening pillar definition */
 export interface Pillar {
@@ -92,12 +97,15 @@ export interface PillarValidationResult {
   pillarName: string;
   status: PillarStatus;
   detail: string;
+  /** 1-indexed line numbers relevant to this finding */
+  lines?: number[];
 }
 
 /** Full validation result */
 export interface ValidationResult {
   pillars: PillarValidationResult[];
   score: number;
+  warnings: number;
   maxScore: number;
   summary: string;
 }
