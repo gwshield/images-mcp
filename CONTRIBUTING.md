@@ -6,6 +6,7 @@ Thank you for considering a contribution. This document explains how to set up t
 
 - [Code of Conduct](#code-of-conduct)
 - [Automated Contributions Policy](#automated-contributions-policy)
+- [Dependabot Triage Policy](#dependabot-triage-policy)
 - [Prerequisites](#prerequisites)
 - [Local Setup](#local-setup)
 - [Project Structure](#project-structure)
@@ -38,7 +39,7 @@ Every pull request must have a named human owner who is accountable for the chan
 **Permitted:**
 
 - **Dependabot** — dependency update PRs opened by the `dependabot[bot]` GitHub App are
-  accepted. These are reviewed and merged by a human maintainer.
+  accepted. A human maintainer reviews and merges them according to the triage rules below.
 - **Project CI apps** — status checks, lint bots, and similar automated systems that
   comment on or update existing PRs (but do not open them) are accepted.
 - **AI-assisted contributions** — PRs where the author used AI coding tools (LLMs,
@@ -53,6 +54,28 @@ Every pull request must have a named human owner who is accountable for the chan
 Automated and agent-generated PRs without human review introduce supply chain risk. This
 project ships a tool used in security-sensitive pipelines. Human accountability on every
 change is non-negotiable.
+
+---
+
+## Dependabot Triage Policy
+
+All Dependabot PRs are reviewed manually before merge. The following triage rules apply:
+
+| Update type | Action |
+|---|---|
+| Security CVE in any production dependency | Merge immediately; escalate if CI fails |
+| Production dependency — major version bump | Review changelog; apply manually with signed commit if safe; do not use bot merge |
+| Production dependency — minor or patch | Merge after CI green; spot-check changelog |
+| Dev-only dependency — major version bump | Merge after CI green; verify build output unchanged |
+| Dev-only dependency — minor or patch | Merge after CI green |
+| GitHub Actions — any version | Update SHA pin to match; merge after CI green |
+
+**Major version bumps in production dependencies** (e.g. `zod`, `@modelcontextprotocol/sdk`) are
+applied as manual signed commits rather than bot-merged PRs. This ensures that version bumps
+appear in the signed commit log and the Dependabot PR closes automatically.
+
+**GitHub Actions updates** always require updating the SHA pin in the workflow file to match
+the new tag, since this project uses SHA-pinned action references (ADR-0009).
 
 ---
 
